@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0, user-scalable=yes">
+  <title>Перукарня ВПУ-19 | Стиль та майстерність</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- Font Awesome 6 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  
+  <!-- Підключення стилів -->
+  <link rel="stylesheet" href="css/styles.css">
+  
+  <!-- Import Map для Firebase -->
+  <script type="importmap">
+    {
+      "imports": {
+        "firebase/app": "https://www.gstatic.com/firebasejs/10.7.2/firebase-app.js",
+        "firebase/auth": "https://www.gstatic.com/firebasejs/10.7.2/firebase-auth.js",
+        "firebase/firestore": "https://www.gstatic.com/firebasejs/10.7.2/firebase-firestore.js"
+      }
+    }
+  </script>
+</head>
+<body>
+
+<div class="cursor" id="cursor"></div>
+<div class="cursor-ring" id="cursorRing"></div>
+
+<!-- NAVIGATION -->
+<nav id="navbar">
+  <div class="nav-logo" onclick="navigate('home')"><i class="fas fa-cut"></i> ПЕРУКАРНЯ ВПУ-19</div>
+  <ul class="nav-links">
+    <li><a onclick="navigate('home')"><i class="fas fa-home"></i> Головна</a></li>
+    <li><a onclick="navigate('masters')"><i class="fas fa-user-tie"></i> Майстри</a></li>
+    <li><a id="profileNavLink" onclick="navigate('profile')"><i class="fas fa-user-circle"></i> Профіль</a></li>
+    <li><a id="adminNavLink" style="display:none" onclick="navigate('admin')"><i class="fas fa-cog"></i> Адмін</a></li>
+  </ul>
+  <button class="nav-auth-btn" id="authBtn" onclick="openAuthModal()"><i class="fas fa-sign-in-alt"></i> Увійти</button>
+  <button class="hamburger" id="hamburgerBtn" aria-label="Меню"><span></span><span></span><span></span></button>
+</nav>
+
+<!-- MOBILE MENU -->
+<div class="mobile-menu" id="mobileMenu">
+  <a onclick="navigate('home'); closeMobileMenu()"><i class="fas fa-home"></i> Головна</a>
+  <a onclick="navigate('masters'); closeMobileMenu()"><i class="fas fa-user-tie"></i> Майстри</a>
+  <a onclick="navigate('profile'); closeMobileMenu()"><i class="fas fa-user-circle"></i> Профіль</a>
+  <a id="mobileAdminLink" style="display:none" onclick="navigate('admin'); closeMobileMenu()"><i class="fas fa-cog"></i> Адмін</a>
+  <button class="mobile-auth-btn" id="mobileAuthBtn" onclick="openAuthModal()"><i class="fas fa-sign-in-alt"></i> Увійти</button>
+</div>
+<div class="menu-overlay" id="menuOverlay"></div>
+
+<!-- PAGE: HOME -->
+<div id="page-home" class="page active">
+  <section class="hero">
+    <div class="hero-left">
+      <span class="hero-tag"><i class="fas fa-graduation-cap"></i> Навчальна перукарня</span>
+      <h1 class="hero-title"><em>Перукарня</em><strong>ВПУ-19</strong></h1>
+      <p class="hero-desc" id="heroDescription">Навчальна перукарня Вищого Професійного Училища №19. Тут майбутні майстри розвивають свою майстерність, а клієнти отримують якісні послуги.</p>
+      <div class="hero-cta-group">
+        <button class="hero-cta" onclick="navigate('masters')">Переглянути майстрів <i class="fas fa-arrow-right"></i></button>
+        <button class="hero-price-btn" onclick="openPriceList()"><i class="fas fa-tags"></i> Переглянути прейскурант</button>
+      </div>
+    </div>
+    <div class="hero-right">
+      <div class="hero-right-inner">
+        <div class="hero-stats">
+          <div><div class="hero-stat-num" id="statMasters">—</div><div class="hero-stat-label"><i class="fas fa-users"></i> Майстрів</div></div>
+          <div class="hero-stat-divider"></div>
+          <div><div class="hero-stat-num" id="statWorks">—</div><div class="hero-stat-label"><i class="fas fa-images"></i> Робіт</div></div>
+          <div class="hero-stat-divider"></div>
+          <div><div class="hero-stat-num" id="statRating">—</div><div class="hero-stat-label"><i class="fas fa-star"></i> Середній рейтинг</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="feed-section">
+    <div class="feed-header">
+      <h2>Стрічка <em>робіт</em></h2>
+      <p>Останні роботи наших майстрів</p>
+    </div>
+    <div id="feedContainer"><div class="loading-wrap"><div class="spinner"></div><div>Завантаження...</div></div></div>
+  </div>
+
+  <footer>
+    <div><div class="footer-brand-name"><i class="fas fa-cut" style="margin-right:6px;"></i>Перукарня ВПУ-19</div><div class="footer-brand-sub">Навчальна перукарня</div></div>
+    <div>
+      <div class="footer-col-title">Навігація</div>
+      <div class="footer-col-item" onclick="navigate('home')"><i class="fas fa-home"></i> Головна</div>
+      <div class="footer-col-item" onclick="navigate('masters')"><i class="fas fa-user-tie"></i> Майстри</div>
+      <div class="footer-col-item" onclick="navigate('profile')"><i class="fas fa-user-circle"></i> Профіль</div>
+      <div class="footer-col-item" onclick="openPriceList()" style="color:rgba(201,168,76,.7)"><i class="fas fa-tags"></i> Прейскурант цін</div>
+    </div>
+    <div>
+      <div class="footer-col-title">Контакти</div>
+      <div class="footer-col-item" id="footerAddress"><i class="fas fa-map-marker-alt"></i> Львівська область, м. Дрогобич, вул. Михайла Грушевського, 59</div>
+      <div class="footer-col-item" id="footerPhone"><i class="fas fa-phone-alt"></i> +38 (0362) 63-19-19</div>
+      <div class="footer-col-item" id="footerEmail"><i class="fas fa-envelope"></i> vpu19@education.ua</div>
+    </div>
+  </footer>
+  <div class="footer-bottom"><span>© 2024 Перукарня ВПУ-19</span><span>Firebase + Cloudinary</span></div>
+</div>
+
+<!-- PAGE: MASTERS -->
+<div id="page-masters" class="page">
+  <div class="masters-page-wrap">
+    <h1 class="masters-page-title">Наші <em style="font-style:italic">майстри</em></h1>
+    <div class="masters-grid" id="mastersList">
+      <div class="loading-wrap"><div class="spinner"></div><div>Завантаження...</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE: PROFILE -->
+<div id="page-profile" class="page">
+  <div id="profileContainer"></div>
+</div>
+
+<!-- PAGE: ADMIN -->
+<div id="page-admin" class="page">
+  <div class="admin-layout">
+    <aside class="admin-sidebar">
+      <div class="admin-sidebar-title"><i class="fas fa-tachometer-alt"></i> Управління</div>
+      <nav class="admin-nav">
+        <div class="admin-nav-item active" onclick="switchAdminTab('dashboard',this)"><i class="fas fa-chart-pie"></i> Дашборд</div>
+        <div class="admin-nav-item" onclick="switchAdminTab('masters',this)"><i class="fas fa-user-tie"></i> Майстри</div>
+        <div class="admin-nav-item" onclick="switchAdminTab('settings',this)"><i class="fas fa-sliders-h"></i> Налаштування</div>
+      </nav>
+    </aside>
+    <main class="admin-main">
+      <div class="admin-section active" id="admin-dashboard">
+        <h1 class="admin-page-title">Дашборд</h1>
+        <p class="admin-subtitle">Огляд статистики сайту</p>
+        <div class="admin-stats-row">
+          <div class="admin-stat-card"><div class="admin-stat-card-num" id="dashMasters">—</div><div class="admin-stat-card-label"><i class="fas fa-users"></i> Майстрів</div></div>
+          <div class="admin-stat-card"><div class="admin-stat-card-num" id="dashPosts">—</div><div class="admin-stat-card-label"><i class="fas fa-images"></i> Публікацій</div></div>
+          <div class="admin-stat-card"><div class="admin-stat-card-num" id="dashRatings">—</div><div class="admin-stat-card-label"><i class="fas fa-star"></i> Оцінок</div></div>
+        </div>
+      </div>
+      <div class="admin-section" id="admin-masters">
+        <h1 class="admin-page-title">Майстри</h1>
+        <p class="admin-subtitle">Управління акаунтами майстрів</p>
+        <div class="admin-toolbar">
+          <button class="btn-primary" onclick="openAddMasterModal()"><i class="fas fa-plus-circle"></i> Додати майстра</button>
+        </div>
+        <table class="admin-masters-table">
+          <thead><tr><th>Фото</th><th>Ім'я</th><th>Email</th><th>Роль</th><th>Дії</th></tr></thead>
+          <tbody id="adminMastersTbody"></tbody>
+        </table>
+      </div>
+      <div class="admin-section" id="admin-settings">
+        <h1 class="admin-page-title">Налаштування</h1>
+        <p class="admin-subtitle">Загальні налаштування сайту</p>
+        <div style="max-width:460px">
+          <div class="form-group"><label class="form-label">Назва закладу</label><input class="form-input" id="settingsName" placeholder="Назва"></div>
+          <div class="form-group"><label class="form-label">Опис на головній</label><textarea class="form-textarea" id="settingsDesc" rows="3"></textarea></div>
+          <div class="form-group"><label class="form-label">Адреса</label><input class="form-input" id="settingsAddress"></div>
+          <div class="form-group"><label class="form-label">Телефон</label><input class="form-input" id="settingsPhone"></div>
+          <div class="form-group"><label class="form-label">Email закладу</label><input class="form-input" id="settingsEmail"></div>
+          <button class="btn-primary" onclick="saveSettings()"><i class="fas fa-save"></i> Зберегти зміни</button>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- CREATE POST FAB -->
+<button class="create-post-fab" id="createPostFab" onclick="openCreatePost()">
+  <i class="fas fa-plus"></i> Нова робота
+</button>
+
+<!-- MODAL: PRICE LIST -->
+<div id="modalPriceList" class="modal-overlay">
+  <div class="modal price-modal">
+    <div class="modal-header">
+      <h2 class="modal-title"><i class="fas fa-tags" style="margin-right:10px;"></i>Прейскурант цін</h2>
+      <button class="modal-close" onclick="closeModal('modalPriceList')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="price-categories">
+        <!-- СТРИЖКА -->
+        <div class="price-category">
+          <div class="price-cat-header open" onclick="togglePriceCategory(this)">
+            <div class="price-cat-title"><i class="fas fa-cut"></i> Стрижка</div>
+            <span class="price-cat-arrow"><i class="fas fa-chevron-up"></i></span>
+          </div>
+          <div class="price-items open">
+            <div class="price-row"><span class="price-row-num">1.</span><span class="price-row-name">Чоловіча стрижка</span><span class="price-row-price">120<span>грн</span></span></div>
+            <div class="price-row"><span class="price-row-num">2.</span><span class="price-row-name">Жіноча стрижка на коротке волосся</span><span class="price-row-price">140<span>грн</span></span></div>
+            <div class="price-row"><span class="price-row-num">3.</span><span class="price-row-name">Жіноча стрижка на середнє волосся</span><span class="price-row-price">150–160<span>грн</span></span></div>
+            <div class="price-row"><span class="price-row-num">4.</span><span class="price-row-name">Жіноча стрижка на довге волосся</span><span class="price-row-price">160<span>грн</span></span></div>
+            <div class="price-row"><span class="price-row-num">5.</span><span class="price-row-name">Жіноча модельна стрижка</span><span class="price-row-price">160<span>грн</span></span></div>
+            <div class="price-row"><span class="price-row-num">6.</span><span class="price-row-name">Стрижка гриви</span><span class="price-row-price">50<span>грн</span></span></div>
+            <div class="price-row"><span class="price-row-num">7.</span><span class="price-row-name">Підрівнювання кінців волосся</span><span class="price-row-price">80<span>грн</span></span></div>
+            <div class="price-row"><span class="price-row-num">8.</span><span class="price-row-name">Миття голови</span><span class="price-row-price">50<span>грн</span></span></div>
+          </div>
+        </div>
+        <!-- ФАРБУВАННЯ -->
+        <div class="price-category">
+          <div class="price-cat-header" onclick="togglePriceCategory(this)">
+            <div class="price-cat-title"><i class="fas fa-paint-brush"></i> Фарбування</div>
+            <span class="price-cat-arrow"><i class="fas fa-chevron-down"></i></span>
+          </div>
+          <div class="price-items">
+            <div class="price-row"><span class="price-row-num">9.</span><span class="price-row-name">Фарбування короткого волосся</span><span class="price-row-price">120<span>грн</span></span></div>
+            <div class="price-row"><span class="price-row-num">10.</span><span class="price-row-name">Фарбування середнього волосся</span><span class="price-row-price">140<span>грн</span></span></div>
+            <div class="price-row"><span class="price-row-num">11.</span><span class="price-row-name">Фарбування довгого волосся</span><span class="price-row-price">180–200<span>грн</span></span></div>
+            <div class="price-row"><span class="price-row-num">12.</span><span class="price-row-name">Мелірування на шапочку</span><span class="price-row-price">130<span>грн</span></span></div>
+            <div class="price-row"><span class="price-row-num">13.</span><span class="price-row-name">Мелірування на фольгу</span><span class="price-row-price">350–400<span>грн</span></span></div>
+            <div class="price-row"><span class="price-row-num">14.</span><span class="price-row-name">Колорування волосся</span><span class="price-row-price">500–600<span>грн</span></span></div>
+          </div>
+        </div>
+        <!-- УКЛАДКА -->
+        <div class="price-category">
+          <div class="price-cat-header" onclick="togglePriceCategory(this)">
+            <div class="price-cat-title"><i class="fas fa-wind"></i> Укладка</div>
+            <span class="price-cat-arrow"><i class="fas fa-chevron-down"></i></span>
+          </div>
+          <div class="price-items">
+            <div class="price-row"><span class="price-row-num">15.</span><span class="price-row-name">Укладка волосся</span><span class="price-row-price">130<span>грн</span></span></div>
+            <div class="price-row"><span class="price-row-num">16.</span><span class="price-row-name">Укладка на щипці (праску) по контуру</span><span class="price-row-price">130<span>грн</span></span></div>
+            <div class="price-row"><span class="price-row-num">17.</span><span class="price-row-name">Укладка на щипці (праску) вирівнювання</span><span class="price-row-price">150<span>грн</span></span></div>
+            <div class="price-row"><span class="price-row-num">18.</span><span class="price-row-name">Накрутка на електрощипці середнього волосся</span><span class="price-row-price">300<span>грн</span></span></div>
+            <div class="price-row"><span class="price-row-num">19.</span><span class="price-row-name">Накрутка на електрощипці довгого волосся</span><span class="price-row-price">400<span>грн</span></span></div>
+          </div>
+        </div>
+        <!-- ХІМІЧНА ЗАВИВКА -->
+        <div class="price-category">
+          <div class="price-cat-header" onclick="togglePriceCategory(this)">
+            <div class="price-cat-title"><i class="fas fa-spa"></i> Хімічна завивка</div>
+            <span class="price-cat-arrow"><i class="fas fa-chevron-down"></i></span>
+          </div>
+          <div class="price-items">
+            <div class="price-row"><span class="price-row-num">20.</span><span class="price-row-name">Хімічна завивка короткого волосся</span><span class="price-row-price">250<span>грн</span></span></div>
+            <div class="price-row"><span class="price-row-num">21.</span><span class="price-row-name">Хімічна завивка середнього волосся</span><span class="price-row-price">300<span>грн</span></span></div>
+            <div class="price-row"><span class="price-row-num">22.</span><span class="price-row-name">Хімічна завивка довгого волосся</span><span class="price-row-price">400<span>грн</span></span></div>
+          </div>
+        </div>
+        <!-- ІНШІ ПОСЛУГИ -->
+        <div class="price-category">
+          <div class="price-cat-header" onclick="togglePriceCategory(this)">
+            <div class="price-cat-title"><i class="fas fa-gem"></i> Інші послуги</div>
+            <span class="price-cat-arrow"><i class="fas fa-chevron-down"></i></span>
+          </div>
+          <div class="price-items">
+            <div class="price-row"><span class="price-row-num">23.</span><span class="price-row-name">Зачіска</span><span class="price-row-price">500–600<span>грн</span></span></div>
+            <div class="price-row"><span class="price-row-num">24.</span><span class="price-row-name">Полірування волосся</span><span class="price-row-price">150<span>грн</span></span></div>
+          </div>
+        </div>
+      </div>
+      <div class="price-modal-note">Прейскурант цін на перукарські послуги на 2025–2026 н.р.</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modalPriceList')"><i class="fas fa-times"></i> Закрити</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: AUTH -->
+<div id="modalAuth" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="modal-title"><i class="fas fa-sign-in-alt" style="margin-right:10px;"></i>Вхід</h2>
+      <button class="modal-close" onclick="closeModal('modalAuth')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="auth-tabs" id="authTabs">
+        <div class="auth-tab active" data-tab="google"><i class="fab fa-google"></i> Для клієнтів</div>
+        <div class="auth-tab" data-tab="master"><i class="fas fa-user-tie"></i> Для майстрів</div>
+      </div>
+      <div id="authGooglePanel">
+        <button class="btn-primary btn-google" id="googleSignInBtn">
+          <i class="fab fa-google"></i> Увійти через Google
+        </button>
+        <p style="font-size:.7rem;text-align:center;margin-top:20px;color:var(--gray-mid)">Для перегляду та залишення відгуків</p>
+      </div>
+      <div id="authMasterPanel" style="display:none">
+        <div id="masterLoginForm">
+          <div class="form-group"><label class="form-label">Email</label><input class="form-input" id="masterAuthEmail" type="email" placeholder="email@example.com"></div>
+          <div class="form-group"><label class="form-label">Пароль</label><input class="form-input" type="password" id="masterAuthPassword" placeholder="••••••••"></div>
+          <div id="masterAuthError" style="color:#c0392b;font-size:.75rem;margin-top:-10px;display:none"></div>
+          <button class="btn-primary" id="masterSignInBtn" style="width:100%;margin-top:8px"><i class="fas fa-sign-in-alt"></i> Увійти</button>
+          <p style="font-size:.65rem;text-align:center;margin-top:16px">Немає акаунта? <a href="#" id="showMasterRegisterBtn" style="color:var(--gold);text-decoration:underline;cursor:pointer">Зареєструватися як майстер</a></p>
+        </div>
+        <div id="masterRegisterForm" style="display:none">
+          <div class="form-group"><label class="form-label">Ім'я та прізвище</label><input class="form-input" id="masterRegName" placeholder="Іван Петренко"></div>
+          <div class="form-group"><label class="form-label">Email</label><input class="form-input" id="masterRegEmail" type="email" placeholder="email@example.com"></div>
+          <div class="form-group"><label class="form-label">Пароль (мін. 6 символів)</label><input class="form-input" type="password" id="masterRegPassword" placeholder="••••••••"></div>
+          <div class="form-group"><label class="form-label">Підтвердіть пароль</label><input class="form-input" type="password" id="masterRegPasswordConfirm" placeholder="••••••••"></div>
+          <div id="masterRegError" style="color:#c0392b;font-size:.75rem;margin-bottom:12px;display:none"></div>
+          <button class="btn-primary" id="masterRegisterBtn" style="width:100%"><i class="fas fa-user-plus"></i> Зареєструватися</button>
+          <p style="font-size:.65rem;text-align:center;margin-top:16px"><a href="#" id="showMasterLoginBtn" style="color:var(--gold);text-decoration:underline;cursor:pointer">Вже маєте акаунт? Увійти</a></p>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modalAuth')"><i class="fas fa-times"></i> Скасувати</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: ADD/EDIT MASTER (ADMIN) -->
+<div id="modalMaster" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="modal-title" id="masterModalTitle"><i class="fas fa-user-tie"></i> Додати майстра</h2>
+      <button class="modal-close" onclick="closeModal('modalMaster')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Фото (необов'язково)</label>
+        <div class="form-photo-upload" id="masterPhotoArea">
+          <i class="fas fa-cloud-upload-alt"></i>
+          <input type="file" id="masterPhotoInput" accept="image/*">
+          <div class="upload-hint">Натисніть або перетягніть фото</div>
+        </div>
+      </div>
+      <div class="form-group"><label class="form-label">Повне ім'я *</label><input class="form-input" id="masterName" placeholder="Прізвище Ім'я"></div>
+      <div class="form-group"><label class="form-label">Email *</label><input class="form-input" id="masterEmail" type="email" placeholder="email@example.com"></div>
+      <div class="form-group" id="masterPasswordGroup"><label class="form-label">Пароль *</label><input class="form-input" type="password" id="masterPassword" placeholder="Мінімум 6 символів"></div>
+      <div class="form-group"><label class="form-label">Роль</label><select id="masterRole" class="form-select"><option value="master">Майстер</option><option value="admin">Адміністратор</option></select></div>
+      <div class="form-group"><label class="form-label">Про себе</label><textarea class="form-textarea" id="masterBio" rows="2" placeholder="Коротко про майстра..."></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modalMaster')"><i class="fas fa-times"></i> Скасувати</button>
+      <button class="btn-primary" id="saveMasterBtn"><i class="fas fa-save"></i> Зберегти</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: CREATE POST -->
+<div id="modalPost" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="modal-title"><i class="fas fa-camera"></i> Нова робота</h2>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Фото *</label>
+        <div class="form-photo-upload" id="postPhotoArea" style="min-height:160px">
+          <i class="fas fa-image"></i>
+          <input type="file" id="postPhotoInput" accept="image/*">
+          <div class="upload-hint">Натисніть або перетягніть фото роботи</div>
+        </div>
+      </div>
+      <div class="form-group"><label class="form-label">Опис роботи</label><textarea class="form-textarea" id="postCaption" rows="3" placeholder="Розкажіть про роботу — техніка, стиль, деталі..."></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modalPost')"><i class="fas fa-times"></i> Скасувати</button>
+      <button class="btn-primary" id="submitPostBtn"><i class="fas fa-paper-plane"></i> Опублікувати</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: EDIT PROFILE -->
+<div id="modalEditProfile" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="modal-title"><i class="fas fa-user-edit"></i> Редагувати профіль</h2>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Аватар</label>
+        <div class="form-photo-upload" id="editProfilePhotoArea">
+          <i class="fas fa-camera"></i>
+          <input type="file" id="editProfilePhotoInput" accept="image/*">
+          <div class="upload-hint">Змінити фото</div>
+        </div>
+      </div>
+      <div class="form-group"><label class="form-label">Ім'я</label><input class="form-input" id="editProfileName" placeholder="Ваше ім'я"></div>
+      <div class="form-group"><label class="form-label">Про себе</label><textarea class="form-textarea" id="editProfileBio" rows="3" placeholder="Розкажіть про себе..."></textarea></div>
+      <div class="form-group" id="editPhoneGroup" style="display:none">
+        <label class="form-label">Номер телефону</label>
+        <input class="form-input" id="editProfilePhone" type="tel" placeholder="+380 XX XXX XX XX">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modalEditProfile')"><i class="fas fa-times"></i> Скасувати</button>
+      <button class="btn-primary" id="saveProfileBtn"><i class="fas fa-save"></i> Зберегти</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: WRITE REVIEW -->
+<div id="modalReview" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="modal-title"><i class="fas fa-pen"></i> Написати відгук</h2>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Оцінка</label>
+        <div class="star-picker" id="reviewStarPicker">
+          <span data-v="1"><i class="fas fa-star"></i></span>
+          <span data-v="2"><i class="fas fa-star"></i></span>
+          <span data-v="3"><i class="fas fa-star"></i></span>
+          <span data-v="4"><i class="fas fa-star"></i></span>
+          <span data-v="5"><i class="fas fa-star"></i></span>
+        </div>
+      </div>
+      <div class="form-group"><label class="form-label">Ваш відгук *</label><textarea class="form-textarea" id="reviewText" rows="4" placeholder="Поділіться своїми враженнями про роботу майстра..."></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modalReview')"><i class="fas fa-times"></i> Скасувати</button>
+      <button class="btn-primary" id="submitReviewBtn"><i class="fas fa-paper-plane"></i> Надіслати відгук</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Підключення основного скрипта -->
+<script type="module" src="js/script.js"></script>
+
+</body>
+</html>
