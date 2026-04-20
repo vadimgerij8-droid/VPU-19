@@ -33,7 +33,7 @@ let currentUserDoc = null;
 let editingMasterId = null;
 let pendingMasterPhotoFile = null;
 let pendingProfilePhotoFile = null;
-let pendingPostPhotoFile = null;
+let pendingPostMediaFile = null;  // renamed: може бути фото або відео
 let reviewTargetPostId = null;
 let reviewStarValue = 0;
 
@@ -76,16 +76,28 @@ window.unhoverStars = postId => {
   document.querySelectorAll(`.stars-interactive [data-post="${postId}"]`).forEach(s => s.classList.remove('hovered'));
 };
 
-// ---- Cloudinary upload ----
+// ---- Cloudinary upload (підтримка фото та відео) ----
 async function uploadToCloudinary(file, folder = '') {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
   if (folder) formData.append('folder', folder);
-  const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, { method: 'POST', body: formData });
-  if (!response.ok) { const error = await response.json(); throw new Error(error.error?.message || 'Помилка завантаження на Cloudinary'); }
+
+  // Визначаємо тип ресурсу за MIME
+  const isVideo = file.type.startsWith('video/');
+  const resourceType = isVideo ? 'video' : 'image';
+  const endpoint = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`;
+
+  const response = await fetch(endpoint, { method: 'POST', body: formData });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error?.message || 'Помилка завантаження на Cloudinary');
+  }
   const data = await response.json();
-  return data.secure_url;
+  return {
+    url: data.secure_url,
+    mediaType: isVideo ? 'video' : 'image'
+  };
 }
 
 function getSessionId() {
@@ -156,6 +168,12 @@ async function renderHome() {
       const isClient = currentUser && currentUserDoc?.role === 'user';
       const dateStr = post.createdAt ? new Date(post.createdAt.toDate()).toLocaleDateString('uk-UA', { day:'numeric', month:'long', year:'numeric' }) : 'Дата невідома';
 
+      // Визначаємо тип медіа (якщо не вказано, вважаємо зображенням)
+      const mediaType = post.mediaType || 'image';
+      const mediaHtml = mediaType === 'video'
+        ? `<video class="post-media" src="${esc(post.mediaURL)}" controls playsinline></video>`
+        : `<img class="post-media" src="${esc(post.mediaURL)}" alt="Робота" loading="lazy">`;
+
       html += `
         <div class="post-card animate-on-scroll" id="post-${post.id}">
           <div class="post-header">
@@ -165,7 +183,7 @@ async function renderHome() {
               <div class="post-date">${dateStr}</div>
             </div>
           </div>
-          ${post.imageURL ? `<img class="post-image" src="${esc(post.imageURL)}" alt="Робота" loading="lazy">` : ''}
+          ${post.mediaURL ? mediaHtml : ''}
           ${post.caption ? `<div class="post-caption">${esc(post.caption)}</div>` : ''}
           <div class="post-rating-row" id="rating-row-${post.id}">
             <div class="stars-display">${starsHtml(avg)}</div>
@@ -517,7 +535,11 @@ async function renderProfile(userId) {
         const pAvg = p.ratingCount > 0 ? (p.ratingSum / p.ratingCount).toFixed(1) : null;
         const stars = [1,2,3,4,5].map(i => `<span class="star-icon${pAvg && i<=Math.round(pAvg)?' filled':''}"><i class="fas fa-star"></i></span>`).join('');
         return `<div class="haircut-rating-item">
-          ${p.imageURL ? `<img class="haircut-rating-thumb" src="${esc(p.imageURL)}" loading="lazy" onerror="this.style.display='none'">` : '<div class="haircut-rating-thumb"><i class="fas fa-image" style="font-size:2rem;color:var(--gray-mid)"></i></div>'}
+          ${p.mediaURL ? 
+            (p.mediaType === 'video' 
+              ? `<video class="haircut-rating-thumb" src="${esc(p.mediaURL)}" muted></video>`
+              : `<img class="haircut-rating-thumb" src="${esc(p.mediaURL)}" loading="lazy" onerror="this.style.display='none'">`)
+            : '<div class="haircut-rating-thumb"><i class="fas fa-image" style="font-size:2rem;color:var(--gray-mid)"></i></div>'}
           <div class="haircut-rating-info">
             <div class="haircut-rating-caption">${esc(p.caption || 'Без опису')}</div>
             <div class="haircut-rating-stats">
@@ -563,11 +585,15 @@ async function renderProfile(userId) {
             <div class="profile-tab-pane active" id="ptab-works">
               ${posts.length ? `
                 <div class="profile-posts-grid">
-                  ${posts.map(p => `
-                    <div class="profile-post-item">
-                      <img src="${esc(p.imageURL)}" loading="lazy" onerror="this.src='https://placehold.co/400?text=No+Image'">
+                  ${posts.map(p => {
+                    const mediaHtml = p.mediaType === 'video'
+                      ? `<video src="${esc(p.mediaURL)}" muted playsinline></video>`
+                      : `<img src="${esc(p.mediaURL)}" loading="lazy" onerror="this.src='https://placehold.co/400?text=No+Image'">`;
+                    return `<div class="profile-post-item">
+                      ${mediaHtml}
                       <div class="profile-post-overlay"><i class="fas fa-star"></i> ${p.ratingCount > 0 ? (p.ratingSum/p.ratingCount).toFixed(1) : '—'}</div>
-                    </div>`).join('')}
+                    </div>`;
+                  }).join('')}
                 </div>` : '<p style="color:var(--gray-mid);font-size:.82rem">Ще немає опублікованих робіт</p>'}
             </div>
             <div class="profile-tab-pane" id="ptab-reviews">
@@ -632,8 +658,9 @@ document.getElementById('saveProfileBtn').onclick = async () => {
     const updates = { name, bio };
     if (isMaster && phone !== undefined) updates.phone = phone;
     if (pendingProfilePhotoFile) {
-      const photoURL = await uploadToCloudinary(pendingProfilePhotoFile, `avatars/${currentUser.uid}`);
-      updates.photoURL = photoURL;
+      // Для аватарки завжди зображення
+      const result = await uploadToCloudinary(pendingProfilePhotoFile, `avatars/${currentUser.uid}`);
+      updates.photoURL = result.url;
     }
     await updateDoc(doc(db, 'users', currentUser.uid), updates);
     currentUserDoc = { ...currentUserDoc, ...updates };
@@ -742,8 +769,8 @@ document.getElementById('saveMasterBtn').onclick = async () => {
     if (editingMasterId) {
       const updates = { name, role, bio };
       if (pendingMasterPhotoFile) {
-        const photoURL = await uploadToCloudinary(pendingMasterPhotoFile, `avatars/${editingMasterId}`);
-        updates.photoURL = photoURL;
+        const result = await uploadToCloudinary(pendingMasterPhotoFile, `avatars/${editingMasterId}`);
+        updates.photoURL = result.url;
       }
       await updateDoc(doc(db, 'users', editingMasterId), updates);
       showToast('Майстра оновлено', 'success');
@@ -751,7 +778,10 @@ document.getElementById('saveMasterBtn').onclick = async () => {
       if (!password) { showToast('Введіть пароль', 'error'); return; }
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       let photoURL = null;
-      if (pendingMasterPhotoFile) { photoURL = await uploadToCloudinary(pendingMasterPhotoFile, `avatars/${cred.user.uid}`); }
+      if (pendingMasterPhotoFile) {
+        const result = await uploadToCloudinary(pendingMasterPhotoFile, `avatars/${cred.user.uid}`);
+        photoURL = result.url;
+      }
       await setDoc(doc(db, 'users', cred.user.uid), { email, name, role, bio, photoURL, createdAt: Timestamp.now() });
       showToast('Майстра додано', 'success');
     }
@@ -796,37 +826,60 @@ function applySettings(s) {
   if (s.email) document.getElementById('footerEmail').innerHTML = `<i class="fas fa-envelope"></i> ${s.email}`;
 }
 
+// ---- Створення поста з підтримкою фото та відео ----
 window.openCreatePost = () => {
   if (!currentUser) { openAuthModal(); return; }
   if (!['master','admin'].includes(currentUserDoc?.role)) { showToast('Тільки майстри можуть публікувати роботи', 'error'); return; }
-  pendingPostPhotoFile = null;
-  document.getElementById('postPhotoInput').value = '';
+  pendingPostMediaFile = null;
+  document.getElementById('postMediaInput').value = '';
   document.getElementById('postCaption').value = '';
-  document.getElementById('postPhotoArea').style.backgroundImage = '';
+  const area = document.getElementById('postMediaArea');
+  area.innerHTML = '<i class="fas fa-cloud-upload-alt"></i><span>Натисніть, щоб вибрати фото або відео</span>';
+  area.style.backgroundImage = '';
   openModal('modalPost');
 };
 
-document.getElementById('postPhotoInput').onchange = e => {
-  pendingPostPhotoFile = e.target.files[0];
-  if (pendingPostPhotoFile) {
-    const url = URL.createObjectURL(pendingPostPhotoFile);
-    const area = document.getElementById('postPhotoArea');
-    area.style.backgroundImage = `url(${url})`; area.style.backgroundSize = 'cover'; area.style.backgroundPosition = 'center'; area.style.minHeight = '200px';
+// Оновлений input accept для фото та відео
+document.getElementById('postMediaInput').onchange = e => {
+  pendingPostMediaFile = e.target.files[0];
+  const area = document.getElementById('postMediaArea');
+  if (!pendingPostMediaFile) {
+    area.innerHTML = '<i class="fas fa-cloud-upload-alt"></i><span>Натисніть, щоб вибрати фото або відео</span>';
+    area.style.backgroundImage = '';
+    return;
+  }
+
+  const file = pendingPostMediaFile;
+  const isVideo = file.type.startsWith('video/');
+  const url = URL.createObjectURL(file);
+
+  if (isVideo) {
+    // Для відео показуємо відеоплеєр всередині area
+    area.innerHTML = `<video src="${url}" controls style="width:100%; height:100%; object-fit:contain;"></video>`;
+  } else {
+    // Для фото показуємо як background-image
+    area.style.backgroundImage = `url(${url})`;
+    area.style.backgroundSize = 'cover';
+    area.style.backgroundPosition = 'center';
+    area.innerHTML = ''; // очищаємо текст
   }
 };
 
 document.getElementById('submitPostBtn').onclick = async () => {
-  if (!pendingPostPhotoFile) { showToast('Оберіть фото', 'error'); return; }
+  if (!pendingPostMediaFile) { showToast('Оберіть фото або відео', 'error'); return; }
   const btn = document.getElementById('submitPostBtn');
   btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Завантаження...';
   btn.disabled = true;
   try {
     const caption = document.getElementById('postCaption').value.trim();
-    const imageURL = await uploadToCloudinary(pendingPostPhotoFile, `posts/${currentUser.uid}`);
+    const result = await uploadToCloudinary(pendingPostMediaFile, `posts/${currentUser.uid}`);
     await addDoc(collection(db, 'posts'), {
       authorId: currentUser.uid,
-      imageURL, caption,
-      ratingSum: 0, ratingCount: 0,
+      mediaURL: result.url,
+      mediaType: result.mediaType,   // 'image' або 'video'
+      caption,
+      ratingSum: 0,
+      ratingCount: 0,
       createdAt: Timestamp.now()
     });
     closeModal('modalPost');
@@ -837,7 +890,7 @@ document.getElementById('submitPostBtn').onclick = async () => {
   } finally {
     btn.innerHTML = '<i class="fas fa-paper-plane"></i> Опублікувати';
     btn.disabled = false;
-    pendingPostPhotoFile = null;
+    pendingPostMediaFile = null;
   }
 };
 
@@ -1021,4 +1074,3 @@ initAuthTabs();
 // Expose functions to global scope for onclick handlers
 window.renderMasters = renderMasters;
 window.renderAdmin = renderAdmin;
-// Note: many functions already attached to window via assignment. 
