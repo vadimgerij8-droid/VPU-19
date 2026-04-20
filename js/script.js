@@ -43,7 +43,7 @@ function esc(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 function openModal(id) { document.getElementById(id).classList.add('open'); }
-window.closeModal = id => document.getElementById(id).classList.remove('closed');
+window.closeModal = id => document.getElementById(id).classList.remove('open');
 document.querySelectorAll('.modal-overlay').forEach(o => o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); }));
 
 let toastTimer;
@@ -83,7 +83,6 @@ async function uploadToCloudinary(file, folder = '') {
   formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
   if (folder) formData.append('folder', folder);
 
-  // Визначаємо тип файлу
   const isVideo = file.type.startsWith('video/');
   const endpoint = isVideo ? 'video' : 'image';
   const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${endpoint}/upload`;
@@ -120,7 +119,17 @@ window.navigate = async (page, userId = null) => {
   window.closeMobileMenu();
 };
 
-// ---- RENDER HOME (підтримка відео) ----
+// ---- Допоміжна функція для отримання URL медіа (враховує старі записи з imageURL) ----
+function getPostMedia(post) {
+  if (post.mediaURL) {
+    return { url: post.mediaURL, type: post.mediaType || 'image' };
+  } else if (post.imageURL) {
+    return { url: post.imageURL, type: 'image' };
+  }
+  return null;
+}
+
+// ---- RENDER HOME (підтримка фото/відео) ----
 async function renderHome() {
   const feedEl = document.getElementById('feedContainer');
   feedEl.innerHTML = '<div class="loading-wrap"><div class="spinner"></div><div>Завантаження...</div></div>';
@@ -168,13 +177,13 @@ async function renderHome() {
       const isClient = currentUser && currentUserDoc?.role === 'user';
       const dateStr = post.createdAt ? new Date(post.createdAt.toDate()).toLocaleDateString('uk-UA', { day:'numeric', month:'long', year:'numeric' }) : 'Дата невідома';
 
-      // Відображення медіа: відео або зображення
+      const media = getPostMedia(post);
       let mediaHtml = '';
-      if (post.mediaURL) {
-        if (post.mediaType === 'video') {
-          mediaHtml = `<video class="post-media" controls preload="metadata" src="${esc(post.mediaURL)}"></video>`;
+      if (media) {
+        if (media.type === 'video') {
+          mediaHtml = `<video class="post-media" controls preload="metadata" src="${esc(media.url)}"></video>`;
         } else {
-          mediaHtml = `<img class="post-image" src="${esc(post.mediaURL)}" alt="Робота" loading="lazy">`;
+          mediaHtml = `<img class="post-image" src="${esc(media.url)}" alt="Робота" loading="lazy">`;
         }
       }
 
@@ -538,13 +547,13 @@ async function renderProfile(userId) {
       haircutRatingsHtml = '<div class="haircut-ratings-list">' + allSorted.map(p => {
         const pAvg = p.ratingCount > 0 ? (p.ratingSum / p.ratingCount).toFixed(1) : null;
         const stars = [1,2,3,4,5].map(i => `<span class="star-icon${pAvg && i<=Math.round(pAvg)?' filled':''}"><i class="fas fa-star"></i></span>`).join('');
-        // У профілі для робіт також показуємо медіа
+        const media = getPostMedia(p);
         let mediaHtml = '';
-        if (p.mediaURL) {
-          if (p.mediaType === 'video') {
-            mediaHtml = `<video class="haircut-rating-thumb" controls preload="metadata" src="${esc(p.mediaURL)}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;"></video>`;
+        if (media) {
+          if (media.type === 'video') {
+            mediaHtml = `<video class="haircut-rating-thumb" controls preload="metadata" src="${esc(media.url)}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;"></video>`;
           } else {
-            mediaHtml = `<img class="haircut-rating-thumb" src="${esc(p.mediaURL)}" loading="lazy" onerror="this.style.display='none'">`;
+            mediaHtml = `<img class="haircut-rating-thumb" src="${esc(media.url)}" loading="lazy" onerror="this.style.display='none'">`;
           }
         } else {
           mediaHtml = '<div class="haircut-rating-thumb"><i class="fas fa-image" style="font-size:2rem;color:var(--gray-mid)"></i></div>';
@@ -597,12 +606,13 @@ async function renderProfile(userId) {
               ${posts.length ? `
                 <div class="profile-posts-grid">
                   ${posts.map(p => {
+                    const media = getPostMedia(p);
                     let mediaHtml = '';
-                    if (p.mediaURL) {
-                      if (p.mediaType === 'video') {
-                        mediaHtml = `<video class="profile-post-item" controls preload="metadata" src="${esc(p.mediaURL)}" style="width:100%;height:100%;object-fit:cover;"></video>`;
+                    if (media) {
+                      if (media.type === 'video') {
+                        mediaHtml = `<video class="profile-post-item" controls preload="metadata" src="${esc(media.url)}" style="width:100%;height:100%;object-fit:cover;"></video>`;
                       } else {
-                        mediaHtml = `<img src="${esc(p.mediaURL)}" loading="lazy" onerror="this.src='https://placehold.co/400?text=No+Image'">`;
+                        mediaHtml = `<img src="${esc(media.url)}" loading="lazy" onerror="this.src='https://placehold.co/400?text=No+Image'">`;
                       }
                     } else {
                       mediaHtml = `<img src="https://placehold.co/400?text=No+Image" loading="lazy">`;
@@ -677,7 +687,7 @@ document.getElementById('saveProfileBtn').onclick = async () => {
     if (isMaster && phone !== undefined) updates.phone = phone;
     if (pendingProfilePhotoFile) {
       const uploadResult = await uploadToCloudinary(pendingProfilePhotoFile, `avatars/${currentUser.uid}`);
-      updates.photoURL = uploadResult.url;  // для аватара тільки фото
+      updates.photoURL = uploadResult.url;
     }
     await updateDoc(doc(db, 'users', currentUser.uid), updates);
     currentUserDoc = { ...currentUserDoc, ...updates };
@@ -848,34 +858,62 @@ window.openCreatePost = () => {
   if (!currentUser) { openAuthModal(); return; }
   if (!['master','admin'].includes(currentUserDoc?.role)) { showToast('Тільки майстри можуть публікувати роботи', 'error'); return; }
   pendingPostMediaFile = null;
-  document.getElementById('postPhotoInput').value = '';
+  const input = document.getElementById('postPhotoInput');
+  input.value = '';
   document.getElementById('postCaption').value = '';
-  document.getElementById('postPhotoArea').style.backgroundImage = '';
-  document.getElementById('postPhotoArea').style.backgroundSize = '';
-  document.getElementById('postPhotoArea').style.minHeight = '160px';
+  const area = document.getElementById('postPhotoArea');
+  // Відновлюємо початковий вигляд області вибору файлу
+  area.style.backgroundImage = '';
+  area.style.backgroundSize = '';
+  area.style.backgroundPosition = '';
+  area.style.minHeight = '160px';
+  area.innerHTML = `
+    <i class="fas fa-image"></i>
+    <input type="file" id="postPhotoInput" accept="image/*,video/*">
+    <div class="upload-hint">Натисніть або перетягніть фото або відео</div>
+  `;
+  // Переприв'язуємо подію onchange для нового input
+  document.getElementById('postPhotoInput').onchange = handlePostMediaSelect;
   openModal('modalPost');
 };
 
-document.getElementById('postPhotoInput').onchange = e => {
+function handlePostMediaSelect(e) {
   const file = e.target.files[0];
   if (!file) return;
   pendingPostMediaFile = file;
-  const url = URL.createObjectURL(file);
   const area = document.getElementById('postPhotoArea');
-  area.style.backgroundImage = `url(${url})`;
-  area.style.backgroundSize = 'cover';
-  area.style.backgroundPosition = 'center';
-  area.style.minHeight = '200px';
-  // Показуємо прев'ю відео через фон (але це не ідеально, краще просто змінити текст)
-  if (file.type.startsWith('video/')) {
-    // Для відео фонова картинка не відобразить відео, тому можна додати іконку
+  const isVideo = file.type.startsWith('video/');
+  const url = URL.createObjectURL(file);
+  
+  if (isVideo) {
+    // Для відео показуємо іконку, тому що фонове зображення не відобразить відео
     area.style.backgroundImage = 'none';
-    area.innerHTML = '<i class="fas fa-video" style="font-size:3rem;color:var(--gold);"></i><div class="upload-hint">Відео вибрано</div>';
+    area.innerHTML = `
+      <i class="fas fa-video" style="font-size:3rem;color:var(--gold);"></i>
+      <div class="upload-hint">Відео вибрано: ${file.name}</div>
+      <input type="file" id="postPhotoInput" accept="image/*,video/*" style="display:none;">
+    `;
+    // Додаємо прихований input, щоб можна було повторно вибрати файл
+    const hiddenInput = document.createElement('input');
+    hiddenInput.type = 'file';
+    hiddenInput.id = 'postPhotoInput';
+    hiddenInput.accept = 'image/*,video/*';
+    hiddenInput.style.display = 'none';
+    hiddenInput.onchange = handlePostMediaSelect;
+    area.appendChild(hiddenInput);
   } else {
     area.style.backgroundImage = `url(${url})`;
-    area.innerHTML = '<i class="fas fa-image"></i><input type="file" id="postPhotoInput" accept="image/*,video/*"><div class="upload-hint">Натисніть або перетягніть фото або відео</div>';
+    area.style.backgroundSize = 'cover';
+    area.style.backgroundPosition = 'center';
+    area.innerHTML = `
+      <i class="fas fa-image"></i>
+      <input type="file" id="postPhotoInput" accept="image/*,video/*">
+      <div class="upload-hint">Натисніть або перетягніть фото або відео</div>
+    `;
+    document.getElementById('postPhotoInput').onchange = handlePostMediaSelect;
   }
-};
+  area.style.minHeight = '200px';
+}
 
 document.getElementById('submitPostBtn').onclick = async () => {
   if (!pendingPostMediaFile) { showToast('Оберіть фото або відео', 'error'); return; }
