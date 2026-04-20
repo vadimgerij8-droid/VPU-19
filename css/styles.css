@@ -312,6 +312,16 @@ nav.scrolled { border-bottom-color: var(--gray-light); padding: 16px 48px; }
   width: 100%; max-height: 560px; object-fit: cover; display: block;
   transition: transform 0.5s ease;
 }
+
+/* Додано .post-media */
+.post-media {
+  width: 100%;
+  max-height: 600px;
+  object-fit: cover;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
 .post-card:hover .post-image { transform: scale(1.01); }
 .post-caption {
   padding: 18px 24px; font-size: .88rem; line-height: 1.7;
