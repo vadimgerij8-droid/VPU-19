@@ -174,7 +174,7 @@ nav.scrolled { border-bottom-color: var(--gray-light); padding: clamp(10px, 1.5v
 .page.active { display: block; opacity: 1; transform: translateY(0); }
 
 /* HERO */
-.hero { min-height: 100vh; display: grid; grid-template-columns: 1fr 1fr; position: relative; overflow: hidden; }
+.hero { min-height: 70vh; display: grid; grid-template-columns: 1fr 1fr; position: relative; overflow: hidden; }
 .hero-left {
   background: var(--black); display: flex; flex-direction: column;
   justify-content: center;
