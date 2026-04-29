@@ -33,9 +33,11 @@ let currentUserDoc = null;
 let editingMasterId = null;
 let pendingMasterPhotoFile = null;
 let pendingProfilePhotoFile = null;
-let pendingPostMediaFile = null;        // може бути фото або відео
+let pendingPostFiles = []; // array of File objects for current post (only one type)
+let postMediaType = null; // 'image' or 'video'
 let reviewTargetPostId = null;
 let reviewStarValue = 0;
+let currentFeedFilter = 'all'; // 'all', 'master', 'student'
 
 // ---- Helpers ----
 function esc(str) {
@@ -76,7 +78,7 @@ window.unhoverStars = postId => {
   document.querySelectorAll(`.stars-interactive [data-post="${postId}"]`).forEach(s => s.classList.remove('hovered'));
 };
 
-// ---- Cloudinary upload (підтримка фото та відео) ----
+// ---- Cloudinary upload (image or video) ----
 async function uploadToCloudinary(file, folder = '') {
   const formData = new FormData();
   formData.append('file', file);
@@ -119,17 +121,15 @@ window.navigate = async (page, userId = null) => {
   window.closeMobileMenu();
 };
 
-// ---- Допоміжна функція для отримання URL медіа (враховує старі записи з imageURL) ----
-function getPostMedia(post) {
-  if (post.mediaURL) {
-    return { url: post.mediaURL, type: post.mediaType || 'image' };
-  } else if (post.imageURL) {
-    return { url: post.imageURL, type: 'image' };
-  }
-  return null;
+// ---- Get post media as array ----
+function getPostMediaArray(post) {
+  if (post.media && Array.isArray(post.media)) return post.media;
+  if (post.mediaURL) return [{ url: post.mediaURL, type: post.mediaType || 'image' }];
+  if (post.imageURL) return [{ url: post.imageURL, type: 'image' }];
+  return [];
 }
 
-// ---- RENDER HOME (підтримка фото/відео) ----
+// ---- RENDER HOME ----
 async function renderHome() {
   const feedEl = document.getElementById('feedContainer');
   feedEl.innerHTML = '<div class="loading-wrap"><div class="spinner"></div><div>Завантаження...</div></div>';
@@ -146,15 +146,21 @@ async function renderHome() {
     const globalAvg = totalRatingCount > 0 ? (totalRatingSum / totalRatingCount).toFixed(1) : '—';
     document.getElementById('statRating').textContent = globalAvg;
 
-    if (postsSnap.empty) {
-      feedEl.innerHTML = '<div class="empty-state"><h3>Ще немає робіт</h3><p>Станьте майстром і додайте першу роботу!</p></div>';
+    const allPosts = postsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    // Filter by status if needed
+    let filteredPosts = allPosts;
+    if (currentFeedFilter !== 'all') {
+      filteredPosts = allPosts.filter(post => post.authorStatus === currentFeedFilter);
+    }
+
+    if (filteredPosts.length === 0) {
+      feedEl.innerHTML = '<div class="empty-state"><h3>Немає робіт</h3><p>Публікації з\'являться тут</p></div>';
       return;
     }
 
     const ratedPosts = new Set(JSON.parse(localStorage.getItem('ratedPosts') || '[]'));
-    let html = '';
     const authorCache = {};
-
     const reviewsSnap = await getDocs(collection(db, 'reviews'));
     const reviewCountByPost = {};
     reviewsSnap.forEach(r => {
@@ -162,8 +168,8 @@ async function renderHome() {
       reviewCountByPost[pid] = (reviewCountByPost[pid] || 0) + 1;
     });
 
-    for (const docSnap of postsSnap.docs) {
-      const post = { id: docSnap.id, ...docSnap.data() };
+    let html = '';
+    for (const post of filteredPosts) {
       if (!authorCache[post.authorId]) {
         const aSnap = await getDoc(doc(db, 'users', post.authorId));
         authorCache[post.authorId] = aSnap.exists() ? aSnap.data() : { name: 'Невідомий', photoURL: null };
@@ -175,16 +181,19 @@ async function renderHome() {
       const canDelete = isOwn || currentUserDoc?.role === 'admin';
       const reviewCount = reviewCountByPost[post.id] || 0;
       const isClient = currentUser && currentUserDoc?.role === 'user';
-      const dateStr = post.createdAt ? new Date(post.createdAt.toDate()).toLocaleDateString('uk-UA', { day:'numeric', month:'long', year:'numeric' }) : 'Дата невідома';
+      const dateStr = post.createdAt ? new Date(post.createdAt.toDate()).toLocaleDateString('uk-UA', { day:'numeric', month:'long', year:'numeric' }) : '';
 
-      const media = getPostMedia(post);
+      const media = getPostMediaArray(post);
       let mediaHtml = '';
-      if (media) {
-        if (media.type === 'video') {
-          mediaHtml = `<video class="post-media" controls preload="metadata" src="${esc(media.url)}"></video>`;
+      if (media.length === 1) {
+        const m = media[0];
+        if (m.type === 'video') {
+          mediaHtml = `<div class="post-media-single"><video class="post-media" controls preload="metadata" src="${esc(m.url)}"></video></div>`;
         } else {
-          mediaHtml = `<img class="post-image" src="${esc(media.url)}" alt="Робота" loading="lazy">`;
+          mediaHtml = `<div class="post-media-single"><img class="post-image" src="${esc(m.url)}" alt="Робота" loading="lazy"></div>`;
         }
+      } else if (media.length > 1) {
+        mediaHtml = renderCarousel(post.id, media);
       }
 
       html += `
@@ -222,9 +231,85 @@ async function renderHome() {
     }
     feedEl.innerHTML = html;
     initScrollAnimation();
+    // Reinitialize carousels
+    initCarousels();
   } catch(e) {
     feedEl.innerHTML = `<div class="empty-state"><h3>Помилка завантаження</h3><p>${esc(e.message)}</p></div>`;
   }
+}
+
+function renderCarousel(postId, media) {
+  const slides = media.map((m, idx) => {
+    if (m.type === 'video') {
+      return `<div class="carousel-slide"><video src="${esc(m.url)}" controls preload="metadata" class="carousel-video"></video></div>`;
+    } else {
+      return `<div class="carousel-slide"><img src="${esc(m.url)}" alt="Slide ${idx+1}" loading="lazy"></div>`;
+    }
+  }).join('');
+  const dots = media.map((_, idx) => `<span class="carousel-dot${idx===0?' active':''}" data-idx="${idx}"></span>`).join('');
+  return `
+    <div class="post-media-carousel" data-post-id="${postId}">
+      <div class="carousel-track">${slides}</div>
+      <button class="carousel-nav carousel-prev" aria-label="Попередній"><i class="fas fa-chevron-left"></i></button>
+      <button class="carousel-nav carousel-next" aria-label="Наступний"><i class="fas fa-chevron-right"></i></button>
+      <div class="carousel-dots">${dots}</div>
+      <div class="carousel-counter">1/${media.length}</div>
+    </div>`;
+}
+
+// Carousel initialization and logic
+function initCarousels() {
+  document.querySelectorAll('.post-media-carousel').forEach(carousel => {
+    const track = carousel.querySelector('.carousel-track');
+    const slides = track.querySelectorAll('.carousel-slide');
+    const prevBtn = carousel.querySelector('.carousel-prev');
+    const nextBtn = carousel.querySelector('.carousel-next');
+    const dots = carousel.querySelectorAll('.carousel-dot');
+    const counter = carousel.querySelector('.carousel-counter');
+    const postId = carousel.dataset.postId;
+    let currentIndex = 0;
+
+    function updateCarousel(index) {
+      if (index < 0) index = 0;
+      if (index >= slides.length) index = slides.length - 1;
+      currentIndex = index;
+      track.style.transform = `translateX(-${index * 100}%)`;
+      dots.forEach(d => d.classList.remove('active'));
+      dots[index].classList.add('active');
+      counter.textContent = `${index+1}/${slides.length}`;
+      // Pause any playing video except current
+      slides.forEach((slide, i) => {
+        const video = slide.querySelector('video');
+        if (video) {
+          if (i !== index) video.pause();
+        }
+      });
+    }
+
+    prevBtn.onclick = () => updateCarousel(currentIndex - 1);
+    nextBtn.onclick = () => updateCarousel(currentIndex + 1);
+    dots.forEach(dot => dot.onclick = () => updateCarousel(parseInt(dot.dataset.idx)));
+
+    // Touch/swipe support
+    let startX = 0, moved = false;
+    carousel.addEventListener('touchstart', e => {
+      startX = e.touches[0].clientX;
+      moved = false;
+    }, {passive: true});
+    carousel.addEventListener('touchmove', e => {
+      if (Math.abs(e.touches[0].clientX - startX) > 10) moved = true;
+    }, {passive: true});
+    carousel.addEventListener('touchend', e => {
+      if (!moved) return;
+      const delta = e.changedTouches[0].clientX - startX;
+      if (Math.abs(delta) > 50) {
+        if (delta > 0) updateCarousel(currentIndex - 1);
+        else updateCarousel(currentIndex + 1);
+      }
+    });
+
+    updateCarousel(0);
+  });
 }
 
 function initScrollAnimation() {
@@ -237,6 +322,20 @@ function initScrollAnimation() {
   }, { threshold: 0.1 });
   document.querySelectorAll('.animate-on-scroll').forEach(el => observer.observe(el));
 }
+
+// ---- FEED TABS ----
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.feed-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.feed-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      currentFeedFilter = tab.dataset.filter;
+      renderHome();
+    });
+  });
+});
+
+// Rest of existing functions (toggleReviews, handleReviewLike, etc.) remain mostly the same...
 
 window.toggleReviews = async (postId, btn) => {
   const listEl = document.getElementById(`reviews-list-${postId}`);
@@ -252,7 +351,7 @@ window.toggleReviews = async (postId, btn) => {
   try {
     const snap = await getDocs(query(collection(db, 'reviews'), where('postId', '==', postId), orderBy('createdAt', 'desc')));
     if (snap.empty) {
-      listEl.innerHTML = '<div style="padding:16px;font-size:.78rem;color:var(--gray-mid)">Відгуків ще немає. Будьте першим!</div>';
+      listEl.innerHTML = '<div style="padding:16px;font-size:.78rem;color:var(--gray-mid)">Відгуків ще немає.</div>';
       return;
     }
     const sessionId = getSessionId();
@@ -466,7 +565,7 @@ async function renderMasters() {
           <div class="master-card-photo">${u.photoURL ? `<img src="${esc(u.photoURL)}" loading="lazy">` : '<i class="fas fa-user-tie" style="font-size:3rem;color:var(--gray-mid)"></i>'}</div>
           <div class="master-card-info">
             <div class="master-card-name">${esc(u.name || u.email)}</div>
-            <div class="master-card-role"><i class="fas fa-${u.role === 'admin' ? 'crown' : 'cut'}"></i> ${u.role === 'admin' ? 'Адміністратор' : 'Майстер'}</div>
+            <div class="master-card-role"><i class="fas fa-${u.role === 'admin' ? 'crown' : 'cut'}"></i> ${u.role === 'admin' ? 'Адміністратор' : 'Майстер'} ${u.status ? `· ${u.status === 'student' ? 'Учень' : 'Майстер'}` : ''}</div>
             <div class="master-card-stats"><span><i class="far fa-image"></i> ${postsSnap.size} робіт</span>${u.phone ? `<span><i class="fas fa-phone-alt"></i> ${esc(u.phone)}</span>` : ''}</div>
             <div class="master-card-rating-row">
               <div class="stars-display">${starsHtml(avg)}</div>
@@ -512,6 +611,7 @@ async function renderProfile(userId) {
         if (postIds.includes(r.postId)) allReviews.push(r);
       });
     }
+    // Build reviews tab html
     let reviewsTabHtml = '';
     if (allReviews.length === 0) reviewsTabHtml = '<p style="color:var(--gray-mid);font-size:.82rem">Відгуків ще немає</p>';
     else {
@@ -534,6 +634,7 @@ async function renderProfile(userId) {
         </div>`;
       }).join('') + '</div>';
     }
+    // Build haircut ratings tab html
     let haircutRatingsHtml = '';
     if (posts.length === 0) haircutRatingsHtml = '<p style="color:var(--gray-mid);font-size:.82rem">Ще немає публікацій з оцінками</p>';
     else {
@@ -547,13 +648,14 @@ async function renderProfile(userId) {
       haircutRatingsHtml = '<div class="haircut-ratings-list">' + allSorted.map(p => {
         const pAvg = p.ratingCount > 0 ? (p.ratingSum / p.ratingCount).toFixed(1) : null;
         const stars = [1,2,3,4,5].map(i => `<span class="star-icon${pAvg && i<=Math.round(pAvg)?' filled':''}"><i class="fas fa-star"></i></span>`).join('');
-        const media = getPostMedia(p);
+        const media = getPostMediaArray(p);
         let mediaHtml = '';
-        if (media) {
-          if (media.type === 'video') {
-            mediaHtml = `<video class="haircut-rating-thumb" controls preload="metadata" src="${esc(media.url)}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;"></video>`;
+        if (media.length > 0) {
+          const m = media[0];
+          if (m.type === 'video') {
+            mediaHtml = `<video class="haircut-rating-thumb" controls preload="metadata" src="${esc(m.url)}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;"></video>`;
           } else {
-            mediaHtml = `<img class="haircut-rating-thumb" src="${esc(media.url)}" loading="lazy" onerror="this.style.display='none'">`;
+            mediaHtml = `<img class="haircut-rating-thumb" src="${esc(m.url)}" loading="lazy" onerror="this.style.display='none'">`;
           }
         } else {
           mediaHtml = '<div class="haircut-rating-thumb"><i class="fas fa-image" style="font-size:2rem;color:var(--gray-mid)"></i></div>';
@@ -571,13 +673,23 @@ async function renderProfile(userId) {
         </div>`;
       }).join('') + '</div>';
     }
-    const isClientProfile = !isMaster;
+    // Social links
+    const socialLinks = user.socialLinks || {};
+    const socialIcons = [];
+    const platforms = { instagram: 'fab fa-instagram', tiktok: 'fab fa-tiktok', facebook: 'fab fa-facebook', telegram: 'fab fa-telegram', youtube: 'fab fa-youtube', other: 'fas fa-link' };
+    for (const [platform, url] of Object.entries(socialLinks)) {
+      if (url && url.trim()) {
+        socialIcons.push(`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" title="${platform}"><i class="${platforms[platform] || 'fas fa-link'}"></i></a>`);
+      }
+    }
+    const socialHtml = socialIcons.length ? `<div class="profile-social-links">${socialIcons.join('')}</div>` : '';
+
     container.innerHTML = `
       <div class="profile-layout">
         <div class="profile-sidebar">
           <div class="profile-avatar">${user.photoURL ? `<img src="${esc(user.photoURL)}">` : `<div class="profile-avatar-placeholder"><i class="fas fa-user-circle"></i></div>`}</div>
           <div class="profile-name">${esc(user.name || user.email?.split('@')[0] || 'Користувач')}</div>
-          <div class="profile-role-badge"><i class="fas fa-${user.role === 'admin' ? 'crown' : (user.role==='master'?'cut':'user')}"></i> ${user.role === 'admin' ? 'Адміністратор' : user.role === 'master' ? 'Майстер' : 'Клієнт'}</div>
+          <div class="profile-role-badge"><i class="fas fa-${user.role === 'admin' ? 'crown' : (user.role==='master'?'cut':'user')}"></i> ${user.role === 'admin' ? 'Адміністратор' : user.role === 'master' ? 'Майстер' : 'Клієнт'}<span class="profile-status-badge">${user.status === 'student' ? 'Учень' : 'Майстер'}</span></div>
           ${user.bio ? `<p class="profile-bio">${esc(user.bio)}</p>` : ''}
           ${isMaster && user.phone ? `<div class="profile-phone-display"><i class="fas fa-phone-alt"></i> ${esc(user.phone)}</div>` : ''}
           <div class="profile-stats">
@@ -586,6 +698,7 @@ async function renderProfile(userId) {
             <div class="profile-stat"><span class="profile-stat-value">${allReviews.length}</span><span class="profile-stat-label">Відгуків</span></div>
           </div>
           ${avg > 0 ? `<div class="profile-sidebar-stars">${starsHtml(avg)}</div><div class="profile-avg-label">Середній рейтинг: ${avg}</div>` : '<div class="profile-avg-label">Ще немає оцінок</div>'}
+          ${socialHtml}
           ${isOwn ? `
             <button class="btn-edit-profile" onclick="openEditProfileModal()"><i class="fas fa-pen"></i> Редагувати профіль</button>
             ${isMaster ? `<button class="btn-primary" style="margin-top:12px;width:100%" onclick="openCreatePost()"><i class="fas fa-plus-circle"></i> Нова робота</button>` : ''}
@@ -593,44 +706,31 @@ async function renderProfile(userId) {
           ` : ''}
         </div>
         <div class="profile-main">
-          ${isClientProfile ? `
-            <h3 class="profile-section-title"><i class="fas fa-user"></i> Профіль клієнта</h3>
-            <p style="color:var(--gray-mid);font-size:.82rem">Клієнт може залишати відгуки до робіт майстрів у стрічці.</p>
-          ` : `
-            <div class="profile-tabs">
-              <button class="profile-tab active" onclick="switchProfileTab('works', this)"><i class="far fa-images"></i> Роботи (${posts.length})</button>
-              <button class="profile-tab" onclick="switchProfileTab('reviews', this)"><i class="far fa-comments"></i> Відгуки (${allReviews.length})</button>
-              <button class="profile-tab" onclick="switchProfileTab('ratings', this)"><i class="fas fa-star"></i> Оцінки стрижок</button>
-            </div>
-            <div class="profile-tab-pane active" id="ptab-works">
-              ${posts.length ? `
-                <div class="profile-posts-grid">
-                  ${posts.map(p => {
-                    const media = getPostMedia(p);
-                    let mediaHtml = '';
-                    if (media) {
-                      if (media.type === 'video') {
-                        mediaHtml = `<video class="profile-post-item" controls preload="metadata" src="${esc(media.url)}" style="width:100%;height:100%;object-fit:cover;"></video>`;
-                      } else {
-                        mediaHtml = `<img src="${esc(media.url)}" loading="lazy" onerror="this.src='https://placehold.co/400?text=No+Image'">`;
-                      }
-                    } else {
-                      mediaHtml = `<img src="https://placehold.co/400?text=No+Image" loading="lazy">`;
-                    }
-                    return `<div class="profile-post-item">
-                      ${mediaHtml}
-                      <div class="profile-post-overlay"><i class="fas fa-star"></i> ${p.ratingCount > 0 ? (p.ratingSum/p.ratingCount).toFixed(1) : '—'}</div>
-                    </div>`;
-                  }).join('')}
-                </div>` : '<p style="color:var(--gray-mid);font-size:.82rem">Ще немає опублікованих робіт</p>'}
-            </div>
-            <div class="profile-tab-pane" id="ptab-reviews">
-              ${reviewsTabHtml}
-            </div>
-            <div class="profile-tab-pane" id="ptab-ratings">
-              ${haircutRatingsHtml}
-            </div>
-          `}
+          <div class="profile-tabs">
+            <button class="profile-tab active" onclick="switchProfileTab('works', this)"><i class="far fa-images"></i> Роботи (${posts.length})</button>
+            <button class="profile-tab" onclick="switchProfileTab('reviews', this)"><i class="far fa-comments"></i> Відгуки (${allReviews.length})</button>
+            <button class="profile-tab" onclick="switchProfileTab('ratings', this)"><i class="fas fa-star"></i> Оцінки стрижок</button>
+          </div>
+          <div class="profile-tab-pane active" id="ptab-works">
+            ${posts.length ? `
+              <div class="profile-posts-grid">
+                ${posts.map(p => {
+                  const media = getPostMediaArray(p);
+                  const thumbUrl = media.length ? media[0].url : 'https://placehold.co/400?text=No+Image';
+                  const overlayAvg = p.ratingCount > 0 ? (p.ratingSum/p.ratingCount).toFixed(1) : '—';
+                  return `<div class="profile-post-item" onclick="navigate('home')">
+                    ${media.length && media[0].type === 'video' ? `<video src="${esc(thumbUrl)}" muted preload="metadata" class="profile-post-thumb"></video>` : `<img src="${esc(thumbUrl)}" loading="lazy" onerror="this.src='https://placehold.co/400?text=No+Image'">`}
+                    <div class="profile-post-overlay"><i class="fas fa-star"></i> ${overlayAvg}</div>
+                  </div>`;
+                }).join('')}
+              </div>` : '<p style="color:var(--gray-mid);font-size:.82rem">Ще немає опублікованих робіт</p>'}
+          </div>
+          <div class="profile-tab-pane" id="ptab-reviews">
+            ${reviewsTabHtml}
+          </div>
+          <div class="profile-tab-pane" id="ptab-ratings">
+            ${haircutRatingsHtml}
+          </div>
         </div>
       </div>
     `;
@@ -646,6 +746,7 @@ window.switchProfileTab = (tab, el) => {
   document.getElementById(`ptab-${tab}`)?.classList.add('active');
 };
 
+// Edit profile modal with status and social links
 window.openEditProfileModal = () => {
   pendingProfilePhotoFile = null;
   document.getElementById('editProfileName').value = currentUserDoc?.name || '';
@@ -654,6 +755,17 @@ window.openEditProfileModal = () => {
   const phoneGroup = document.getElementById('editPhoneGroup');
   phoneGroup.style.display = isMaster ? 'block' : 'none';
   document.getElementById('editProfilePhone').value = currentUserDoc?.phone || '';
+  const statusGroup = document.getElementById('editStatusGroup');
+  statusGroup.style.display = isMaster ? 'block' : 'none';
+  document.getElementById('editProfileStatus').value = currentUserDoc?.status || 'master';
+  // Social links
+  const social = currentUserDoc?.socialLinks || {};
+  document.getElementById('editInstagram').value = social.instagram || '';
+  document.getElementById('editTiktok').value = social.tiktok || '';
+  document.getElementById('editFacebook').value = social.facebook || '';
+  document.getElementById('editTelegram').value = social.telegram || '';
+  document.getElementById('editYoutube').value = social.youtube || '';
+  document.getElementById('editOtherLink').value = social.other || '';
   const area = document.getElementById('editProfilePhotoArea');
   if (currentUserDoc?.photoURL) {
     area.style.backgroundImage = `url(${currentUserDoc.photoURL})`;
@@ -682,9 +794,24 @@ document.getElementById('saveProfileBtn').onclick = async () => {
   const bio = document.getElementById('editProfileBio').value.trim();
   const isMaster = ['master','admin'].includes(currentUserDoc?.role);
   const phone = isMaster ? document.getElementById('editProfilePhone').value.trim() : undefined;
+  const status = isMaster ? document.getElementById('editProfileStatus').value : undefined;
+  const socialLinks = {};
+  const ig = document.getElementById('editInstagram').value.trim();
+  const tt = document.getElementById('editTiktok').value.trim();
+  const fb = document.getElementById('editFacebook').value.trim();
+  const tg = document.getElementById('editTelegram').value.trim();
+  const yt = document.getElementById('editYoutube').value.trim();
+  const ot = document.getElementById('editOtherLink').value.trim();
+  if (ig) socialLinks.instagram = ig;
+  if (tt) socialLinks.tiktok = tt;
+  if (fb) socialLinks.facebook = fb;
+  if (tg) socialLinks.telegram = tg;
+  if (yt) socialLinks.youtube = yt;
+  if (ot) socialLinks.other = ot;
   try {
-    const updates = { name, bio };
+    const updates = { name, bio, socialLinks };
     if (isMaster && phone !== undefined) updates.phone = phone;
+    if (isMaster && status) updates.status = status;
     if (pendingProfilePhotoFile) {
       const uploadResult = await uploadToCloudinary(pendingProfilePhotoFile, `avatars/${currentUser.uid}`);
       updates.photoURL = uploadResult.url;
@@ -697,49 +824,124 @@ document.getElementById('saveProfileBtn').onclick = async () => {
   } catch(e) { showToast(e.message, 'error'); }
 };
 
-async function renderAdmin() {
-  try {
-    const [mastersSnap, postsSnap, ratingsSnap] = await Promise.all([
-      getDocs(query(collection(db, 'users'), where('role', 'in', ['master','admin']))),
-      getDocs(collection(db, 'posts')),
-      getDocs(collection(db, 'ratings'))
-    ]);
-    document.getElementById('dashMasters').textContent = mastersSnap.size;
-    document.getElementById('dashPosts').textContent = postsSnap.size;
-    document.getElementById('dashRatings').textContent = ratingsSnap.size;
-
-    const allUsersSnap = await getDocs(collection(db, 'users'));
-    document.getElementById('adminMastersTbody').innerHTML = allUsersSnap.docs.map(docSnap => {
-      const u = docSnap.data();
-      return `<tr>
-        <td><div class="table-avatar">${u.photoURL ? `<img src="${esc(u.photoURL)}">` : '<i class="fas fa-user-circle" style="font-size:1.8rem;color:var(--gray-mid)"></i>'}</div></td>
-        <td>${esc(u.name || '—')}</td>
-        <td>${esc(u.email)}</td>
-        <td><select onchange="changeRole('${docSnap.id}',this.value)" style="border:1px solid var(--gray-light);padding:4px 8px;font-size:.72rem;background:white;cursor:pointer">
-          <option${u.role==='master'?' selected':''}>master</option>
-          <option${u.role==='admin'?' selected':''}>admin</option>
-          <option${u.role==='user'?' selected':''}>user</option>
-        </select></td>
-        <td class="table-actions">
-          <button class="btn-secondary btn-sm" onclick="editMaster('${docSnap.id}')"><i class="fas fa-pen"></i> Редагувати</button>
-          <button class="btn-danger" onclick="deleteMaster('${docSnap.id}')"><i class="fas fa-trash"></i> Видалити</button>
-        </td>
-      </tr>`;
-    }).join('');
-
-    const settings = JSON.parse(localStorage.getItem('siteSettings') || '{}');
-    document.getElementById('settingsName').value = settings.salonName || 'Перукарня ВПУ-19';
-    document.getElementById('settingsDesc').value = settings.heroDesc || '';
-    document.getElementById('settingsAddress').value = settings.address || '📍 Львівська область, м. Дрогобич, вул. Михайла Грушевського, 59';
-    document.getElementById('settingsPhone').value = settings.phone || '📞 +38 (0362) 63-19-19';
-    document.getElementById('settingsEmail').value = settings.email || '✉️ vpu19@education.ua';
-  } catch(e) { showToast(e.message, 'error'); }
-}
-
-window.changeRole = async (userId, role) => {
-  try { await updateDoc(doc(db, 'users', userId), { role }); showToast('Роль змінено', 'success'); } catch(e) { showToast(e.message, 'error'); }
+// Create post with file handling
+window.openCreatePost = () => {
+  if (!currentUser) { openAuthModal(); return; }
+  if (!['master','admin'].includes(currentUserDoc?.role)) { showToast('Тільки майстри можуть публікувати роботи', 'error'); return; }
+  pendingPostFiles = [];
+  postMediaType = null;
+  document.getElementById('postCaption').value = '';
+  document.getElementById('mediaPreviewGrid').innerHTML = '';
+  document.getElementById('mediaHint').textContent = 'Підтримуються лише фото або лише відео в одному пості';
+  document.getElementById('addPhotosBtn').disabled = false;
+  document.getElementById('addVideosBtn').disabled = false;
+  openModal('modalPost');
 };
 
+function updateMediaPreview() {
+  const grid = document.getElementById('mediaPreviewGrid');
+  grid.innerHTML = '';
+  pendingPostFiles.forEach((file, idx) => {
+    const url = URL.createObjectURL(file);
+    const isVideo = file.type.startsWith('video/');
+    const div = document.createElement('div');
+    div.className = 'media-preview-item';
+    if (isVideo) {
+      div.innerHTML = `<video src="${url}" muted><video><button class="remove-btn" data-idx="${idx}">&times;</button>`;
+    } else {
+      div.innerHTML = `<img src="${url}"><button class="remove-btn" data-idx="${idx}">&times;</button>`;
+    }
+    grid.appendChild(div);
+  });
+  document.querySelectorAll('.remove-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const idx = parseInt(btn.dataset.idx);
+      pendingPostFiles.splice(idx, 1);
+      if (pendingPostFiles.length === 0) postMediaType = null;
+      updateMediaPreview();
+    });
+  });
+}
+
+document.getElementById('addPhotosBtn').addEventListener('click', () => {
+  if (postMediaType === 'video') return;
+  const input = document.getElementById('mediaInput');
+  input.accept = 'image/*';
+  input.multiple = true;
+  input.click();
+});
+
+document.getElementById('addVideosBtn').addEventListener('click', () => {
+  if (postMediaType === 'image') return;
+  const input = document.getElementById('mediaInput');
+  input.accept = 'video/*';
+  input.multiple = true;
+  input.click();
+});
+
+document.getElementById('mediaInput').addEventListener('change', (e) => {
+  const files = Array.from(e.target.files);
+  if (files.length === 0) return;
+  
+  const isImage = !files[0].type.startsWith('video/');
+  const type = isImage ? 'image' : 'video';
+  const maxFiles = isImage ? 10 : 3;
+  
+  if (postMediaType && postMediaType !== type) {
+    showToast('Не можна додавати фото та відео одночасно', 'error');
+    return;
+  }
+  if (pendingPostFiles.length + files.length > maxFiles) {
+    showToast(`Максимум ${maxFiles} файлів для ${isImage ? 'фото' : 'відео'}`, 'error');
+    return;
+  }
+  // Check all files are same type
+  const mixed = files.some(f => f.type.startsWith('video/') !== !isImage);
+  if (mixed) {
+    showToast('Виберіть лише фото або лише відео', 'error');
+    return;
+  }
+  postMediaType = type;
+  pendingPostFiles.push(...files);
+  updateMediaPreview();
+});
+
+document.getElementById('submitPostBtn').onclick = async () => {
+  if (pendingPostFiles.length === 0) { showToast('Додайте хоча б одне фото або відео', 'error'); return; }
+  if (!postMediaType) { showToast('Помилка типу медіа', 'error'); return; }
+  const btn = document.getElementById('submitPostBtn');
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Завантаження...';
+  btn.disabled = true;
+  try {
+    const caption = document.getElementById('postCaption').value.trim();
+    const media = [];
+    for (const file of pendingPostFiles) {
+      const result = await uploadToCloudinary(file, `posts/${currentUser.uid}`);
+      media.push({ url: result.url, type: result.type });
+    }
+    await addDoc(collection(db, 'posts'), {
+      authorId: currentUser.uid,
+      authorStatus: currentUserDoc?.status || 'master',
+      media,
+      caption,
+      ratingSum: 0,
+      ratingCount: 0,
+      createdAt: Timestamp.now()
+    });
+    closeModal('modalPost');
+    showToast('Роботу опубліковано!', 'success');
+    navigate('home');
+  } catch(e) {
+    showToast('Помилка: ' + e.message, 'error');
+  } finally {
+    btn.innerHTML = '<i class="fas fa-paper-plane"></i> Опублікувати';
+    btn.disabled = false;
+    pendingPostFiles = [];
+    postMediaType = null;
+  }
+};
+
+// Admin and other functions remain largely the same, only adding status field.
 window.editMaster = async userId => {
   const snap = await getDoc(doc(db, 'users', userId));
   if (!snap.exists()) return;
@@ -753,35 +955,10 @@ window.editMaster = async userId => {
   document.getElementById('masterPassword').value = '';
   document.getElementById('masterPasswordGroup').style.display = 'none';
   document.getElementById('masterRole').value = u.role || 'master';
+  document.getElementById('masterStatus').value = u.status || 'master';
   document.getElementById('masterBio').value = u.bio || '';
   const area = document.getElementById('masterPhotoArea');
   if (u.photoURL) { area.style.backgroundImage = `url(${u.photoURL})`; area.style.backgroundSize = 'cover'; area.style.backgroundPosition = 'center'; } else { area.style.backgroundImage = ''; }
-  openModal('modalMaster');
-};
-
-window.deleteMaster = async userId => {
-  if (!confirm('Видалити користувача та всі його роботи?')) return;
-  try {
-    const postsSnap = await getDocs(query(collection(db, 'posts'), where('authorId', '==', userId)));
-    for (const p of postsSnap.docs) await deleteDoc(doc(db, 'posts', p.id));
-    await deleteDoc(doc(db, 'users', userId));
-    showToast('Видалено', 'success');
-    renderAdmin();
-  } catch(e) { showToast(e.message, 'error'); }
-};
-
-window.openAddMasterModal = () => {
-  editingMasterId = null;
-  pendingMasterPhotoFile = null;
-  document.getElementById('masterModalTitle').innerHTML = '<i class="fas fa-user-plus"></i> Додати майстра';
-  document.getElementById('masterName').value = '';
-  document.getElementById('masterEmail').value = '';
-  document.getElementById('masterEmail').disabled = false;
-  document.getElementById('masterPassword').value = '';
-  document.getElementById('masterPasswordGroup').style.display = 'block';
-  document.getElementById('masterRole').value = 'master';
-  document.getElementById('masterBio').value = '';
-  document.getElementById('masterPhotoArea').style.backgroundImage = '';
   openModal('modalMaster');
 };
 
@@ -790,11 +967,12 @@ document.getElementById('saveMasterBtn').onclick = async () => {
   const email = document.getElementById('masterEmail').value.trim();
   const password = document.getElementById('masterPassword').value;
   const role = document.getElementById('masterRole').value;
+  const status = document.getElementById('masterStatus').value;
   const bio = document.getElementById('masterBio').value.trim();
   if (!name || !email) { showToast('Заповніть ім\'я та email', 'error'); return; }
   try {
     if (editingMasterId) {
-      const updates = { name, role, bio };
+      const updates = { name, role, status, bio };
       if (pendingMasterPhotoFile) {
         const uploadResult = await uploadToCloudinary(pendingMasterPhotoFile, `avatars/${editingMasterId}`);
         updates.photoURL = uploadResult.url;
@@ -809,7 +987,7 @@ document.getElementById('saveMasterBtn').onclick = async () => {
         const uploadResult = await uploadToCloudinary(pendingMasterPhotoFile, `avatars/${cred.user.uid}`);
         photoURL = uploadResult.url;
       }
-      await setDoc(doc(db, 'users', cred.user.uid), { email, name, role, bio, photoURL, createdAt: Timestamp.now() });
+      await setDoc(doc(db, 'users', cred.user.uid), { email, name, role, status, bio, photoURL, createdAt: Timestamp.now() });
       showToast('Майстра додано', 'success');
     }
     closeModal('modalMaster');
@@ -817,22 +995,41 @@ document.getElementById('saveMasterBtn').onclick = async () => {
   } catch(e) { showToast('Помилка: ' + e.message, 'error'); }
 };
 
-document.getElementById('masterPhotoInput').onchange = e => {
-  pendingMasterPhotoFile = e.target.files[0];
-  if (pendingMasterPhotoFile) {
-    const url = URL.createObjectURL(pendingMasterPhotoFile);
-    const area = document.getElementById('masterPhotoArea');
-    area.style.backgroundImage = `url(${url})`; area.style.backgroundSize = 'cover'; area.style.backgroundPosition = 'center';
-  }
+// Expose necessary functions globally
+window.changeRole = async (userId, role) => {
+  try { await updateDoc(doc(db, 'users', userId), { role }); showToast('Роль змінено', 'success'); } catch(e) { showToast(e.message, 'error'); }
 };
-
+window.deleteMaster = async userId => {
+  if (!confirm('Видалити користувача та всі його роботи?')) return;
+  try {
+    const postsSnap = await getDocs(query(collection(db, 'posts'), where('authorId', '==', userId)));
+    for (const p of postsSnap.docs) await deleteDoc(doc(db, 'posts', p.id));
+    await deleteDoc(doc(db, 'users', userId));
+    showToast('Видалено', 'success');
+    renderAdmin();
+  } catch(e) { showToast(e.message, 'error'); }
+};
+window.openAddMasterModal = () => {
+  editingMasterId = null;
+  pendingMasterPhotoFile = null;
+  document.getElementById('masterModalTitle').innerHTML = '<i class="fas fa-user-plus"></i> Додати майстра';
+  document.getElementById('masterName').value = '';
+  document.getElementById('masterEmail').value = '';
+  document.getElementById('masterEmail').disabled = false;
+  document.getElementById('masterPassword').value = '';
+  document.getElementById('masterPasswordGroup').style.display = 'block';
+  document.getElementById('masterRole').value = 'master';
+  document.getElementById('masterStatus').value = 'master';
+  document.getElementById('masterBio').value = '';
+  document.getElementById('masterPhotoArea').style.backgroundImage = '';
+  openModal('modalMaster');
+};
 window.switchAdminTab = (tabId, el) => {
   document.querySelectorAll('.admin-section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.admin-nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById(`admin-${tabId}`).classList.add('active');
   el.classList.add('active');
 };
-
 window.saveSettings = () => {
   const settings = {
     salonName: document.getElementById('settingsName').value,
@@ -845,104 +1042,12 @@ window.saveSettings = () => {
   applySettings(settings);
   showToast('Налаштування збережено', 'success');
 };
-
 function applySettings(s) {
   if (s.heroDesc) document.getElementById('heroDescription').textContent = s.heroDesc;
   if (s.address) document.getElementById('footerAddress').innerHTML = `<i class="fas fa-map-marker-alt"></i> ${s.address}`;
   if (s.phone) document.getElementById('footerPhone').innerHTML = `<i class="fas fa-phone-alt"></i> ${s.phone}`;
   if (s.email) document.getElementById('footerEmail').innerHTML = `<i class="fas fa-envelope"></i> ${s.email}`;
 }
-
-// ---- СТВОРЕННЯ ПУБЛІКАЦІЇ (фото/відео) ----
-window.openCreatePost = () => {
-  if (!currentUser) { openAuthModal(); return; }
-  if (!['master','admin'].includes(currentUserDoc?.role)) { showToast('Тільки майстри можуть публікувати роботи', 'error'); return; }
-  pendingPostMediaFile = null;
-  const input = document.getElementById('postPhotoInput');
-  input.value = '';
-  document.getElementById('postCaption').value = '';
-  const area = document.getElementById('postPhotoArea');
-  // Відновлюємо початковий вигляд області вибору файлу
-  area.style.backgroundImage = '';
-  area.style.backgroundSize = '';
-  area.style.backgroundPosition = '';
-  area.style.minHeight = '160px';
-  area.innerHTML = `
-    <i class="fas fa-image"></i>
-    <input type="file" id="postPhotoInput" accept="image/*,video/*">
-    <div class="upload-hint">Натисніть або перетягніть фото або відео</div>
-  `;
-  // Переприв'язуємо подію onchange для нового input
-  document.getElementById('postPhotoInput').onchange = handlePostMediaSelect;
-  openModal('modalPost');
-};
-
-function handlePostMediaSelect(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  pendingPostMediaFile = file;
-  const area = document.getElementById('postPhotoArea');
-  const isVideo = file.type.startsWith('video/');
-  const url = URL.createObjectURL(file);
-  
-  if (isVideo) {
-    // Для відео показуємо іконку, тому що фонове зображення не відобразить відео
-    area.style.backgroundImage = 'none';
-    area.innerHTML = `
-      <i class="fas fa-video" style="font-size:3rem;color:var(--gold);"></i>
-      <div class="upload-hint">Відео вибрано: ${file.name}</div>
-      <input type="file" id="postPhotoInput" accept="image/*,video/*" style="display:none;">
-    `;
-    // Додаємо прихований input, щоб можна було повторно вибрати файл
-    const hiddenInput = document.createElement('input');
-    hiddenInput.type = 'file';
-    hiddenInput.id = 'postPhotoInput';
-    hiddenInput.accept = 'image/*,video/*';
-    hiddenInput.style.display = 'none';
-    hiddenInput.onchange = handlePostMediaSelect;
-    area.appendChild(hiddenInput);
-  } else {
-    area.style.backgroundImage = `url(${url})`;
-    area.style.backgroundSize = 'cover';
-    area.style.backgroundPosition = 'center';
-    area.innerHTML = `
-      <i class="fas fa-image"></i>
-      <input type="file" id="postPhotoInput" accept="image/*,video/*">
-      <div class="upload-hint">Натисніть або перетягніть фото або відео</div>
-    `;
-    document.getElementById('postPhotoInput').onchange = handlePostMediaSelect;
-  }
-  area.style.minHeight = '200px';
-}
-
-document.getElementById('submitPostBtn').onclick = async () => {
-  if (!pendingPostMediaFile) { showToast('Оберіть фото або відео', 'error'); return; }
-  const btn = document.getElementById('submitPostBtn');
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Завантаження...';
-  btn.disabled = true;
-  try {
-    const caption = document.getElementById('postCaption').value.trim();
-    const uploadResult = await uploadToCloudinary(pendingPostMediaFile, `posts/${currentUser.uid}`);
-    await addDoc(collection(db, 'posts'), {
-      authorId: currentUser.uid,
-      mediaURL: uploadResult.url,
-      mediaType: uploadResult.type,   // 'image' або 'video'
-      caption,
-      ratingSum: 0,
-      ratingCount: 0,
-      createdAt: Timestamp.now()
-    });
-    closeModal('modalPost');
-    showToast('Роботу опубліковано!', 'success');
-    navigate('home');
-  } catch(e) {
-    showToast('Помилка: ' + e.message, 'error');
-  } finally {
-    btn.innerHTML = '<i class="fas fa-paper-plane"></i> Опублікувати';
-    btn.disabled = false;
-    pendingPostMediaFile = null;
-  }
-};
 
 async function handleGoogleSignIn() {
   try {
@@ -981,7 +1086,7 @@ async function handleMasterRegister() {
   if (password.length < 6) { errDiv.textContent = 'Пароль має бути не менше 6 символів'; errDiv.style.display = 'block'; return; }
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
-    await setDoc(doc(db, 'users', cred.user.uid), { email, name, role: 'master', createdAt: Timestamp.now() });
+    await setDoc(doc(db, 'users', cred.user.uid), { email, name, role: 'master', status: 'master', createdAt: Timestamp.now() });
     closeModal('modalAuth');
     showToast('Реєстрація пройшла успішно! Ви увійшли як майстер.', 'success');
   } catch(e) { errDiv.textContent = e.message; errDiv.style.display = 'block'; }
@@ -1094,7 +1199,6 @@ if (window.innerWidth > 1024) {
   })();
 }
 
-// Price list functions
 window.openPriceList = function() {
   document.getElementById('modalPriceList').classList.add('open');
 };
@@ -1113,7 +1217,6 @@ window.togglePriceCategory = function(headerEl) {
   }
 };
 
-// Settings init
 (function() {
   const s = JSON.parse(localStorage.getItem('siteSettings') || '{}');
   applySettings(s);
@@ -1121,6 +1224,5 @@ window.togglePriceCategory = function(headerEl) {
 
 initAuthTabs();
 
-// Expose functions to global scope for onclick handlers
 window.renderMasters = renderMasters;
 window.renderAdmin = renderAdmin;
