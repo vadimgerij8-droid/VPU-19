@@ -2,11 +2,11 @@
 <html lang="uk">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, maximum-scale=1.5">
   <title>Перукарня Салон ВПУ-19</title>
   <meta name="description" content="Навчальна перукарня Вищого Професійного Училища №19">
   <meta property="og:title" content="Перукарня Салон ВПУ-19">
-  <meta property="og:description" content="Навчальна перукарня ВПУ-19">
+  <meta property="og:description" content="Навчальна перукарня ВПУ-19 — якісні послуги від майстрів та учнів">
   <meta property="og:url" content="https://salonvpu.salonvpu.workers.dev">
 
   <!-- Google Fonts -->
@@ -46,15 +46,21 @@
     <li><a id="adminNavLink" style="display:none" onclick="navigate('admin')"><i class="fas fa-cog"></i> Адмін</a></li>
   </ul>
   <button class="nav-auth-btn" id="authBtn" onclick="openAuthModal()"><i class="fas fa-sign-in-alt"></i> Увійти</button>
-  <button class="hamburger" id="hamburgerBtn" aria-label="Меню"><span></span><span></span><span></span></button>
+  <button class="hamburger" id="hamburgerBtn" aria-label="Меню">
+    <span></span><span></span><span></span>
+  </button>
 </nav>
 
 <!-- MOBILE MENU -->
 <div class="mobile-menu" id="mobileMenu">
+  <div class="mobile-menu-header">
+    <div class="mobile-menu-logo"><i class="fas fa-cut"></i> ВПУ-19</div>
+  </div>
   <a onclick="navigate('home'); closeMobileMenu()"><i class="fas fa-home"></i> Головна</a>
   <a onclick="navigate('masters'); closeMobileMenu()"><i class="fas fa-user-tie"></i> Майстри</a>
   <a onclick="navigate('profile'); closeMobileMenu()"><i class="fas fa-user-circle"></i> Профіль</a>
   <a id="mobileAdminLink" style="display:none" onclick="navigate('admin'); closeMobileMenu()"><i class="fas fa-cog"></i> Адмін</a>
+  <div class="mobile-menu-divider"></div>
   <button class="mobile-auth-btn" id="mobileAuthBtn" onclick="openAuthModal()"><i class="fas fa-sign-in-alt"></i> Увійти</button>
 </div>
 <div class="menu-overlay" id="menuOverlay"></div>
@@ -89,7 +95,6 @@
       <h2>Стрічка <em>робіт</em></h2>
       <p>Останні роботи наших майстрів та учнів</p>
     </div>
-    <!-- Категорії: Майстри / Учні -->
     <div class="feed-tabs" id="feedTabs">
       <button class="feed-tab active" data-filter="all">Усі</button>
       <button class="feed-tab" data-filter="master"><i class="fas fa-user-tie"></i> Майстри</button>
@@ -276,16 +281,23 @@
     </div>
     <div class="modal-body">
       <div class="auth-tabs" id="authTabs">
-        <div class="auth-tab active" data-tab="google"><i class="fab fa-google"></i> Для клієнтів</div>
+        <div class="auth-tab active" data-tab="client"><i class="fas fa-user"></i> Для клієнтів</div>
         <div class="auth-tab" data-tab="master"><i class="fas fa-user-tie"></i> Для майстрів</div>
       </div>
-      <div id="authGooglePanel">
-        <button class="btn-primary btn-google" id="googleSignInBtn">
-          <i class="fab fa-google"></i> Увійти через Google
+      <div id="authClientPanel">
+        <div class="auth-info-box">
+          <i class="fas fa-info-circle"></i>
+          <p>Для клієнтів реєстрація не потрібна! Ви можете вільно переглядати роботи, залишати відгуки та оцінки без входу в акаунт.</p>
+        </div>
+        <button class="btn-secondary" onclick="closeModal('modalAuth')" style="width:100%;justify-content:center;margin-top:12px">
+          <i class="fas fa-check"></i> Зрозуміло, продовжити
         </button>
-        <p style="font-size:.7rem;text-align:center;margin-top:20px;color:var(--gray-mid)">Для перегляду та залишення відгуків</p>
       </div>
       <div id="authMasterPanel" style="display:none">
+        <button class="btn-primary btn-google" id="googleSignInBtn">
+          <i class="fab fa-google"></i> Увійти через Google як майстер
+        </button>
+        <div class="auth-separator"><span>або через email</span></div>
         <div id="masterLoginForm">
           <div class="form-group"><label class="form-label">Email</label><input class="form-input" id="masterAuthEmail" type="email" placeholder="email@example.com"></div>
           <div class="form-group"><label class="form-label">Пароль</label><input class="form-input" type="password" id="masterAuthPassword" placeholder="••••••••"></div>
@@ -424,6 +436,10 @@
       <h2 class="modal-title"><i class="fas fa-pen"></i> Написати відгук</h2>
     </div>
     <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Ваше ім'я</label>
+        <input class="form-input" id="reviewAuthorName" placeholder="Ваше ім'я (необов'язково)">
+      </div>
       <div class="form-group">
         <label class="form-label">Оцінка</label>
         <div class="star-picker" id="reviewStarPicker">
