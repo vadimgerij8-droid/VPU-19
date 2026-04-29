@@ -33,11 +33,11 @@ let currentUserDoc = null;
 let editingMasterId = null;
 let pendingMasterPhotoFile = null;
 let pendingProfilePhotoFile = null;
-let pendingPostFiles = []; // array of File objects for current post (only one type)
-let postMediaType = null; // 'image' or 'video'
+let pendingPostFiles = [];
+let postMediaType = null;
 let reviewTargetPostId = null;
 let reviewStarValue = 0;
-let currentFeedFilter = 'all'; // 'all', 'master', 'student'
+let currentFeedFilter = 'all';
 
 // ---- Helpers ----
 function esc(str) {
@@ -78,7 +78,7 @@ window.unhoverStars = postId => {
   document.querySelectorAll(`.stars-interactive [data-post="${postId}"]`).forEach(s => s.classList.remove('hovered'));
 };
 
-// ---- Cloudinary upload (image or video) ----
+// ---- Cloudinary upload ----
 async function uploadToCloudinary(file, folder = '') {
   const formData = new FormData();
   formData.append('file', file);
@@ -108,12 +108,12 @@ function getSessionId() {
 }
 
 // ---- Navigate ----
-window.navigate = async (page, userId = null) => {
+window.navigate = async (page, userId = null, scrollToPost = null) => {
   document.querySelectorAll('.page').forEach(p => { p.classList.remove('active'); p.style.opacity = '0'; p.style.transform = 'translateY(20px)'; });
   const el = document.getElementById(`page-${page}`);
   el.classList.add('active');
   setTimeout(() => { el.style.opacity = '1'; el.style.transform = 'translateY(0)'; }, 10);
-  if (page === 'home') renderHome();
+  if (page === 'home') { await renderHome(); if (scrollToPost) setTimeout(() => scrollToPostById(scrollToPost), 400); }
   else if (page === 'masters') renderMasters();
   else if (page === 'profile') renderProfile(userId || currentUser?.uid);
   else if (page === 'admin') renderAdmin();
@@ -121,7 +121,15 @@ window.navigate = async (page, userId = null) => {
   window.closeMobileMenu();
 };
 
-// ---- Get post media as array ----
+function scrollToPostById(postId) {
+  const el = document.getElementById(`post-${postId}`);
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.style.boxShadow = '0 0 0 4px var(--gold)';
+    setTimeout(() => { el.style.boxShadow = ''; }, 2000);
+  }
+}
+
 function getPostMediaArray(post) {
   if (post.media && Array.isArray(post.media)) return post.media;
   if (post.mediaURL) return [{ url: post.mediaURL, type: post.mediaType || 'image' }];
@@ -148,7 +156,6 @@ async function renderHome() {
 
     const allPosts = postsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-    // Filter by status if needed
     let filteredPosts = allPosts;
     if (currentFeedFilter !== 'all') {
       filteredPosts = allPosts.filter(post => post.authorStatus === currentFeedFilter);
@@ -180,7 +187,6 @@ async function renderHome() {
       const isOwn = currentUser && currentUser.uid === post.authorId;
       const canDelete = isOwn || currentUserDoc?.role === 'admin';
       const reviewCount = reviewCountByPost[post.id] || 0;
-      const isClient = currentUser && currentUserDoc?.role === 'user';
       const dateStr = post.createdAt ? new Date(post.createdAt.toDate()).toLocaleDateString('uk-UA', { day:'numeric', month:'long', year:'numeric' }) : '';
 
       const media = getPostMediaArray(post);
@@ -188,9 +194,9 @@ async function renderHome() {
       if (media.length === 1) {
         const m = media[0];
         if (m.type === 'video') {
-          mediaHtml = `<div class="post-media-single"><video class="post-media" controls preload="metadata" src="${esc(m.url)}"></video></div>`;
+          mediaHtml = `<div class="single-media"><video class="post-media" controls preload="metadata" src="${esc(m.url)}"></video></div>`;
         } else {
-          mediaHtml = `<div class="post-media-single"><img class="post-image" src="${esc(m.url)}" alt="Робота" loading="lazy"></div>`;
+          mediaHtml = `<div class="single-media"><img class="post-image" src="${esc(m.url)}" alt="Робота" loading="lazy"></div>`;
         }
       } else if (media.length > 1) {
         mediaHtml = renderCarousel(post.id, media);
@@ -217,7 +223,7 @@ async function renderHome() {
             }
           </div>
           <div class="post-reviews-section">
-            ${isClient ? `<button class="btn-write-review" onclick="openWriteReview('${post.id}')"><i class="far fa-comment-dots"></i> Написати відгук</button>` : ''}
+            <button class="btn-write-review" onclick="openWriteReview('${post.id}')"><i class="far fa-comment-dots"></i> Написати відгук</button>
             <button class="post-reviews-toggle" onclick="toggleReviews('${post.id}', this)">
               <i class="far fa-comments"></i> Відгуки <span class="reviews-count-badge" id="rev-count-${post.id}">${reviewCount}</span>
               <span style="margin-left:auto;font-size:.7rem;color:var(--gray-mid)" id="rev-arrow-${post.id}"><i class="fas fa-chevron-down"></i></span>
@@ -231,13 +237,13 @@ async function renderHome() {
     }
     feedEl.innerHTML = html;
     initScrollAnimation();
-    // Reinitialize carousels
     initCarousels();
   } catch(e) {
     feedEl.innerHTML = `<div class="empty-state"><h3>Помилка завантаження</h3><p>${esc(e.message)}</p></div>`;
   }
 }
 
+// Carousel
 function renderCarousel(postId, media) {
   const slides = media.map((m, idx) => {
     if (m.type === 'video') {
@@ -257,7 +263,6 @@ function renderCarousel(postId, media) {
     </div>`;
 }
 
-// Carousel initialization and logic
 function initCarousels() {
   document.querySelectorAll('.post-media-carousel').forEach(carousel => {
     const track = carousel.querySelector('.carousel-track');
@@ -266,7 +271,6 @@ function initCarousels() {
     const nextBtn = carousel.querySelector('.carousel-next');
     const dots = carousel.querySelectorAll('.carousel-dot');
     const counter = carousel.querySelector('.carousel-counter');
-    const postId = carousel.dataset.postId;
     let currentIndex = 0;
 
     function updateCarousel(index) {
@@ -277,7 +281,6 @@ function initCarousels() {
       dots.forEach(d => d.classList.remove('active'));
       dots[index].classList.add('active');
       counter.textContent = `${index+1}/${slides.length}`;
-      // Pause any playing video except current
       slides.forEach((slide, i) => {
         const video = slide.querySelector('video');
         if (video) {
@@ -290,7 +293,6 @@ function initCarousels() {
     nextBtn.onclick = () => updateCarousel(currentIndex + 1);
     dots.forEach(dot => dot.onclick = () => updateCarousel(parseInt(dot.dataset.idx)));
 
-    // Touch/swipe support
     let startX = 0, moved = false;
     carousel.addEventListener('touchstart', e => {
       startX = e.touches[0].clientX;
@@ -307,7 +309,6 @@ function initCarousels() {
         else updateCarousel(currentIndex + 1);
       }
     });
-
     updateCarousel(0);
   });
 }
@@ -335,8 +336,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-// Rest of existing functions (toggleReviews, handleReviewLike, etc.) remain mostly the same...
-
+// ---- Toggle Reviews ----
 window.toggleReviews = async (postId, btn) => {
   const listEl = document.getElementById(`reviews-list-${postId}`);
   const arrowEl = document.getElementById(`rev-arrow-${postId}`);
@@ -426,13 +426,12 @@ window.handleReviewLike = async (reviewId, type) => {
   await batch.commit();
   const likeSpan = document.getElementById(`like-count-${reviewId}`);
   const dislikeSpan = document.getElementById(`dislike-count-${reviewId}`);
-  const likeBtn = document.querySelector(`.like-btn[onclick*="'${reviewId}'"]`);
-  const dislikeBtn = document.querySelector(`.dislike-btn[onclick*="'${reviewId}'"]`);
-  
   if (likeSpan && dislikeSpan) {
     likeSpan.textContent = Math.max(0, parseInt(likeSpan.textContent) + likeDelta);
     dislikeSpan.textContent = Math.max(0, parseInt(dislikeSpan.textContent) + dislikeDelta);
   }
+  const likeBtn = document.querySelector(`.like-btn[onclick*="'${reviewId}'"]`);
+  const dislikeBtn = document.querySelector(`.dislike-btn[onclick*="'${reviewId}'"]`);
   if (likeBtn && dislikeBtn) {
     const newVote = (!snap.empty && snap.docs[0].data().type === type) ? null : type;
     likeBtn.classList.toggle('active', newVote === 'like');
@@ -441,12 +440,12 @@ window.handleReviewLike = async (reviewId, type) => {
   showToast(type === 'like' ? '👍 Лайк!' : '👎 Дизлайк', 'success');
 };
 
+// Open write review (no login required)
 window.openWriteReview = postId => {
-  if (!currentUser) { openAuthModal(); return; }
-  if (currentUserDoc?.role !== 'user') { showToast('Тільки клієнти можуть залишати відгуки', 'error'); return; }
   reviewTargetPostId = postId;
   reviewStarValue = 0;
   document.getElementById('reviewText').value = '';
+  document.getElementById('reviewAuthorName').value = '';
   document.querySelectorAll('#reviewStarPicker span').forEach(s => s.classList.remove('sel'));
   openModal('modalReview');
 };
@@ -472,18 +471,18 @@ document.querySelectorAll('#reviewStarPicker span').forEach(sp => {
 });
 
 document.getElementById('submitReviewBtn').onclick = async () => {
-  if (!currentUser) return;
   const text = document.getElementById('reviewText').value.trim();
   if (!text) { showToast('Напишіть текст відгуку', 'error'); return; }
   if (!reviewStarValue) { showToast('Оберіть оцінку (зірки)', 'error'); return; }
+  const authorName = document.getElementById('reviewAuthorName').value.trim() || 'Анонім';
   try {
     const btn = document.getElementById('submitReviewBtn');
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Надсилання...';
     btn.disabled = true;
     await addDoc(collection(db, 'reviews'), {
       postId: reviewTargetPostId,
-      authorId: currentUser.uid,
-      authorName: currentUserDoc?.name || currentUser.displayName || 'Анонім',
+      authorId: currentUser?.uid || getSessionId(),
+      authorName: authorName,
       text,
       rating: reviewStarValue,
       createdAt: Timestamp.now()
@@ -546,6 +545,7 @@ window.deletePost = async postId => {
   } catch(e) { showToast(e.message, 'error'); }
 };
 
+// ---- MASTERS LIST ----
 async function renderMasters() {
   const container = document.getElementById('mastersList');
   container.innerHTML = '<div class="loading-wrap"><div class="spinner"></div><div>Завантаження...</div></div>';
@@ -582,6 +582,20 @@ async function renderMasters() {
   }
 }
 
+// ---- PROFILE ----
+function buildProfilePostsGrid(posts) {
+  return posts.map(p => {
+    const media = getPostMediaArray(p);
+    const thumbUrl = media.length ? media[0].url : 'https://placehold.co/400?text=No+Image';
+    const overlayAvg = p.ratingCount > 0 ? (p.ratingSum/p.ratingCount).toFixed(1) : '—';
+    const isVideo = media.length && media[0].type === 'video';
+    return `<div class="profile-post-item" onclick="navigate('home', null, '${p.id}')">
+      ${isVideo ? `<video src="${esc(thumbUrl)}" muted preload="metadata" style="width:100%;height:100%;object-fit:cover"></video>` : `<img src="${esc(thumbUrl)}" loading="lazy" onerror="this.src='https://placehold.co/400?text=No+Image'">`}
+      <div class="profile-post-overlay"><i class="fas fa-star"></i> ${overlayAvg}</div>
+    </div>`;
+  }).join('');
+}
+
 async function renderProfile(userId) {
   const container = document.getElementById('profileContainer');
   if (!userId) {
@@ -602,6 +616,8 @@ async function renderProfile(userId) {
     const avg = rCount > 0 ? (rSum / rCount).toFixed(1) : 0;
     const isOwn = currentUser && currentUser.uid === userId;
     const isMaster = user.role === 'master' || user.role === 'admin';
+    const statusClass = user.status === 'student' ? '' : 'master-status';
+    const statusLabel = user.status === 'student' ? 'Учень' : 'Майстер';
     const postIds = posts.map(p => p.id);
     let allReviews = [];
     if (postIds.length > 0) {
@@ -611,72 +627,9 @@ async function renderProfile(userId) {
         if (postIds.includes(r.postId)) allReviews.push(r);
       });
     }
-    // Build reviews tab html
-    let reviewsTabHtml = '';
-    if (allReviews.length === 0) reviewsTabHtml = '<p style="color:var(--gray-mid);font-size:.82rem">Відгуків ще немає</p>';
-    else {
-      const postMap = {};
-      posts.forEach(p => postMap[p.id] = p);
-      reviewsTabHtml = '<div class="profile-reviews-list">' + allReviews.map(r => {
-        const dateStr = r.createdAt ? new Date(r.createdAt.toDate()).toLocaleDateString('uk-UA', { day:'numeric', month:'long', year:'numeric' }) : '';
-        const stars = [1,2,3,4,5].map(i => `<span class="star-icon${i<=(r.rating||0)?' filled':''}"><i class="fas fa-star"></i></span>`).join('');
-        const postCaption = postMap[r.postId]?.caption || 'Публікація';
-        return `<div class="profile-review-card">
-          <div class="profile-review-card-meta">
-            <div class="profile-review-card-info">
-              <div class="profile-review-card-author">${esc(r.authorName || 'Анонім')}</div>
-              <div class="profile-review-card-post">До: ${esc(postCaption.length > 40 ? postCaption.slice(0,40)+'…' : postCaption)}</div>
-            </div>
-            <div class="profile-review-card-date">${dateStr}</div>
-          </div>
-          <div style="display:flex;gap:3px;margin-bottom:8px">${stars}</div>
-          <div class="profile-review-card-text">${esc(r.text)}</div>
-        </div>`;
-      }).join('') + '</div>';
-    }
-    // Build haircut ratings tab html
-    let haircutRatingsHtml = '';
-    if (posts.length === 0) haircutRatingsHtml = '<p style="color:var(--gray-mid);font-size:.82rem">Ще немає публікацій з оцінками</p>';
-    else {
-      const ratedPosts = posts.filter(p => p.ratingCount > 0).sort((a,b) => {
-        const avgA = a.ratingSum / a.ratingCount;
-        const avgB = b.ratingSum / b.ratingCount;
-        return avgB - avgA;
-      });
-      const unratedPosts = posts.filter(p => !p.ratingCount);
-      const allSorted = [...ratedPosts, ...unratedPosts];
-      haircutRatingsHtml = '<div class="haircut-ratings-list">' + allSorted.map(p => {
-        const pAvg = p.ratingCount > 0 ? (p.ratingSum / p.ratingCount).toFixed(1) : null;
-        const stars = [1,2,3,4,5].map(i => `<span class="star-icon${pAvg && i<=Math.round(pAvg)?' filled':''}"><i class="fas fa-star"></i></span>`).join('');
-        const media = getPostMediaArray(p);
-        let mediaHtml = '';
-        if (media.length > 0) {
-          const m = media[0];
-          if (m.type === 'video') {
-            mediaHtml = `<video class="haircut-rating-thumb" controls preload="metadata" src="${esc(m.url)}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;"></video>`;
-          } else {
-            mediaHtml = `<img class="haircut-rating-thumb" src="${esc(m.url)}" loading="lazy" onerror="this.style.display='none'">`;
-          }
-        } else {
-          mediaHtml = '<div class="haircut-rating-thumb"><i class="fas fa-image" style="font-size:2rem;color:var(--gray-mid)"></i></div>';
-        }
-        return `<div class="haircut-rating-item">
-          ${mediaHtml}
-          <div class="haircut-rating-info">
-            <div class="haircut-rating-caption">${esc(p.caption || 'Без опису')}</div>
-            <div class="haircut-rating-stats">
-              <div style="display:flex;gap:3px">${stars}</div>
-              <span class="haircut-rating-avg">${pAvg || '—'}</span>
-              <span class="haircut-rating-count">${p.ratingCount || 0} оцінок</span>
-            </div>
-          </div>
-        </div>`;
-      }).join('') + '</div>';
-    }
-    // Social links
     const socialLinks = user.socialLinks || {};
-    const socialIcons = [];
     const platforms = { instagram: 'fab fa-instagram', tiktok: 'fab fa-tiktok', facebook: 'fab fa-facebook', telegram: 'fab fa-telegram', youtube: 'fab fa-youtube', other: 'fas fa-link' };
+    const socialIcons = [];
     for (const [platform, url] of Object.entries(socialLinks)) {
       if (url && url.trim()) {
         socialIcons.push(`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" title="${platform}"><i class="${platforms[platform] || 'fas fa-link'}"></i></a>`);
@@ -684,12 +637,34 @@ async function renderProfile(userId) {
     }
     const socialHtml = socialIcons.length ? `<div class="profile-social-links">${socialIcons.join('')}</div>` : '';
 
+    let reviewsTabHtml = allReviews.length === 0 ? '<p style="color:var(--gray-mid);font-size:.82rem">Відгуків ще немає</p>' :
+      '<div class="profile-reviews-list">' + allReviews.map(r => {
+        const dateStr = r.createdAt ? new Date(r.createdAt.toDate()).toLocaleDateString('uk-UA', { day:'numeric', month:'long', year:'numeric' }) : '';
+        const stars = [1,2,3,4,5].map(i => `<span class="star-icon${i<=(r.rating||0)?' filled':''}"><i class="fas fa-star"></i></span>`).join('');
+        return `<div class="profile-review-card">
+          <div class="profile-review-card-meta"><div class="profile-review-card-info"><div class="profile-review-card-author">${esc(r.authorName || 'Анонім')}</div></div><div class="profile-review-card-date">${dateStr}</div></div>
+          <div style="display:flex;gap:3px;margin-bottom:8px">${stars}</div>
+          <div class="profile-review-card-text">${esc(r.text)}</div></div>`;
+      }).join('') + '</div>';
+
+    const ratedPosts = posts.filter(p => p.ratingCount > 0).sort((a,b) => (b.ratingSum/b.ratingCount) - (a.ratingSum/a.ratingCount));
+    const unratedPosts = posts.filter(p => !p.ratingCount);
+    const allSorted = [...ratedPosts, ...unratedPosts];
+    let haircutRatingsHtml = allSorted.length === 0 ? '<p style="color:var(--gray-mid);font-size:.82rem">Ще немає публікацій з оцінками</p>' :
+      '<div class="haircut-ratings-list">' + allSorted.map(p => {
+        const pAvg = p.ratingCount > 0 ? (p.ratingSum / p.ratingCount).toFixed(1) : null;
+        const stars = [1,2,3,4,5].map(i => `<span class="star-icon${pAvg && i<=Math.round(pAvg)?' filled':''}"><i class="fas fa-star"></i></span>`).join('');
+        const media = getPostMediaArray(p);
+        let mediaEl = media.length ? (media[0].type === 'video' ? `<video class="haircut-rating-thumb" controls preload="metadata" src="${esc(media[0].url)}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;"></video>` : `<img class="haircut-rating-thumb" src="${esc(media[0].url)}" loading="lazy" onerror="this.style.display='none'">`) : '<div class="haircut-rating-thumb"><i class="fas fa-image" style="font-size:2rem;color:var(--gray-mid)"></i></div>';
+        return `<div class="haircut-rating-item">${mediaEl}<div class="haircut-rating-info"><div class="haircut-rating-caption">${esc(p.caption || 'Без опису')}</div><div class="haircut-rating-stats"><div style="display:flex;gap:3px">${stars}</div><span class="haircut-rating-avg">${pAvg || '—'}</span><span class="haircut-rating-count">${p.ratingCount || 0} оцінок</span></div></div></div>`;
+      }).join('') + '</div>';
+
     container.innerHTML = `
       <div class="profile-layout">
         <div class="profile-sidebar">
           <div class="profile-avatar">${user.photoURL ? `<img src="${esc(user.photoURL)}">` : `<div class="profile-avatar-placeholder"><i class="fas fa-user-circle"></i></div>`}</div>
           <div class="profile-name">${esc(user.name || user.email?.split('@')[0] || 'Користувач')}</div>
-          <div class="profile-role-badge"><i class="fas fa-${user.role === 'admin' ? 'crown' : (user.role==='master'?'cut':'user')}"></i> ${user.role === 'admin' ? 'Адміністратор' : user.role === 'master' ? 'Майстер' : 'Клієнт'}<span class="profile-status-badge">${user.status === 'student' ? 'Учень' : 'Майстер'}</span></div>
+          <div class="profile-role-badge"><i class="fas fa-${user.role === 'admin' ? 'crown' : (user.role==='master'?'cut':'user')}"></i> ${user.role === 'admin' ? 'Адміністратор' : user.role === 'master' ? 'Майстер' : 'Клієнт'}<span class="profile-status-badge ${statusClass}">${statusLabel}</span></div>
           ${user.bio ? `<p class="profile-bio">${esc(user.bio)}</p>` : ''}
           ${isMaster && user.phone ? `<div class="profile-phone-display"><i class="fas fa-phone-alt"></i> ${esc(user.phone)}</div>` : ''}
           <div class="profile-stats">
@@ -701,8 +676,8 @@ async function renderProfile(userId) {
           ${socialHtml}
           ${isOwn ? `
             <button class="btn-edit-profile" onclick="openEditProfileModal()"><i class="fas fa-pen"></i> Редагувати профіль</button>
-            ${isMaster ? `<button class="btn-primary" style="margin-top:12px;width:100%" onclick="openCreatePost()"><i class="fas fa-plus-circle"></i> Нова робота</button>` : ''}
-            <button class="btn-secondary" style="margin-top:12px;width:100%;background:transparent;color:rgba(255,255,255,.5);border-color:rgba(255,255,255,.2)" onclick="doLogout()"><i class="fas fa-sign-out-alt"></i> Вийти</button>
+            ${isMaster ? `<button class="btn-primary" style="margin-top:8px;width:100%" onclick="openCreatePost()"><i class="fas fa-plus-circle"></i> Нова робота</button>` : ''}
+            <button class="btn-secondary" style="margin-top:8px;width:100%;background:transparent;color:rgba(255,255,255,.5);border-color:rgba(255,255,255,.2)" onclick="doLogout()"><i class="fas fa-sign-out-alt"></i> Вийти</button>
           ` : ''}
         </div>
         <div class="profile-main">
@@ -712,25 +687,10 @@ async function renderProfile(userId) {
             <button class="profile-tab" onclick="switchProfileTab('ratings', this)"><i class="fas fa-star"></i> Оцінки стрижок</button>
           </div>
           <div class="profile-tab-pane active" id="ptab-works">
-            ${posts.length ? `
-              <div class="profile-posts-grid">
-                ${posts.map(p => {
-                  const media = getPostMediaArray(p);
-                  const thumbUrl = media.length ? media[0].url : 'https://placehold.co/400?text=No+Image';
-                  const overlayAvg = p.ratingCount > 0 ? (p.ratingSum/p.ratingCount).toFixed(1) : '—';
-                  return `<div class="profile-post-item" onclick="navigate('home')">
-                    ${media.length && media[0].type === 'video' ? `<video src="${esc(thumbUrl)}" muted preload="metadata" class="profile-post-thumb"></video>` : `<img src="${esc(thumbUrl)}" loading="lazy" onerror="this.src='https://placehold.co/400?text=No+Image'">`}
-                    <div class="profile-post-overlay"><i class="fas fa-star"></i> ${overlayAvg}</div>
-                  </div>`;
-                }).join('')}
-              </div>` : '<p style="color:var(--gray-mid);font-size:.82rem">Ще немає опублікованих робіт</p>'}
+            ${posts.length ? `<div class="profile-posts-grid">${buildProfilePostsGrid(posts)}</div>` : '<p style="color:var(--gray-mid);font-size:.82rem">Ще немає опублікованих робіт</p>'}
           </div>
-          <div class="profile-tab-pane" id="ptab-reviews">
-            ${reviewsTabHtml}
-          </div>
-          <div class="profile-tab-pane" id="ptab-ratings">
-            ${haircutRatingsHtml}
-          </div>
+          <div class="profile-tab-pane" id="ptab-reviews">${reviewsTabHtml}</div>
+          <div class="profile-tab-pane" id="ptab-ratings">${haircutRatingsHtml}</div>
         </div>
       </div>
     `;
@@ -746,7 +706,7 @@ window.switchProfileTab = (tab, el) => {
   document.getElementById(`ptab-${tab}`)?.classList.add('active');
 };
 
-// Edit profile modal with status and social links
+// ---- EDIT PROFILE MODAL ----
 window.openEditProfileModal = () => {
   pendingProfilePhotoFile = null;
   document.getElementById('editProfileName').value = currentUserDoc?.name || '';
@@ -758,7 +718,6 @@ window.openEditProfileModal = () => {
   const statusGroup = document.getElementById('editStatusGroup');
   statusGroup.style.display = isMaster ? 'block' : 'none';
   document.getElementById('editProfileStatus').value = currentUserDoc?.status || 'master';
-  // Social links
   const social = currentUserDoc?.socialLinks || {};
   document.getElementById('editInstagram').value = social.instagram || '';
   document.getElementById('editTiktok').value = social.tiktok || '';
@@ -824,7 +783,7 @@ document.getElementById('saveProfileBtn').onclick = async () => {
   } catch(e) { showToast(e.message, 'error'); }
 };
 
-// Create post with file handling
+// ---- CREATE POST ----
 window.openCreatePost = () => {
   if (!currentUser) { openAuthModal(); return; }
   if (!['master','admin'].includes(currentUserDoc?.role)) { showToast('Тільки майстри можуть публікувати роботи', 'error'); return; }
@@ -847,7 +806,7 @@ function updateMediaPreview() {
     const div = document.createElement('div');
     div.className = 'media-preview-item';
     if (isVideo) {
-      div.innerHTML = `<video src="${url}" muted><video><button class="remove-btn" data-idx="${idx}">&times;</button>`;
+      div.innerHTML = `<video src="${url}" muted></video><button class="remove-btn" data-idx="${idx}">&times;</button>`;
     } else {
       div.innerHTML = `<img src="${url}"><button class="remove-btn" data-idx="${idx}">&times;</button>`;
     }
@@ -895,7 +854,6 @@ document.getElementById('mediaInput').addEventListener('change', (e) => {
     showToast(`Максимум ${maxFiles} файлів для ${isImage ? 'фото' : 'відео'}`, 'error');
     return;
   }
-  // Check all files are same type
   const mixed = files.some(f => f.type.startsWith('video/') !== !isImage);
   if (mixed) {
     showToast('Виберіть лише фото або лише відео', 'error');
@@ -941,7 +899,42 @@ document.getElementById('submitPostBtn').onclick = async () => {
   }
 };
 
-// Admin and other functions remain largely the same, only adding status field.
+// ---- ADMIN PANEL ----
+async function renderAdmin() {
+  if (!currentUserDoc || currentUserDoc.role !== 'admin') {
+    showToast('Доступ заборонено', 'error');
+    return;
+  }
+  // dashboard stats
+  const mastersSnap = await getDocs(query(collection(db, 'users'), where('role', 'in', ['master','admin'])));
+  const postsSnap = await getDocs(collection(db, 'posts'));
+  document.getElementById('dashMasters').textContent = mastersSnap.size;
+  document.getElementById('dashPosts').textContent = postsSnap.size;
+  let ratingCount = 0;
+  postsSnap.forEach(d => ratingCount += d.data().ratingCount || 0);
+  document.getElementById('dashRatings').textContent = ratingCount;
+  
+  // masters table
+  const tbody = document.getElementById('adminMastersTbody');
+  tbody.innerHTML = '';
+  for (const docSnap of mastersSnap.docs) {
+    const u = docSnap.data();
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><div class="table-avatar">${u.photoURL ? `<img src="${esc(u.photoURL)}">` : '<i class="fas fa-user"></i>'}</div></td>
+      <td>${esc(u.name || '')}</td>
+      <td>${esc(u.email)}</td>
+      <td>${u.role}</td>
+      <td>${u.status || 'master'}</td>
+      <td class="table-actions">
+        <button class="btn-secondary btn-sm" onclick="editMaster('${docSnap.id}')"><i class="fas fa-edit"></i></button>
+        <button class="btn-danger btn-sm" onclick="changeRole('${docSnap.id}', '${u.role === 'admin' ? 'master' : 'admin'}')"><i class="fas fa-exchange-alt"></i></button>
+        <button class="btn-danger btn-sm" onclick="deleteMaster('${docSnap.id}')"><i class="fas fa-trash"></i></button>
+      </td>`;
+    tbody.appendChild(tr);
+  }
+}
+
 window.editMaster = async userId => {
   const snap = await getDoc(doc(db, 'users', userId));
   if (!snap.exists()) return;
@@ -995,7 +988,6 @@ document.getElementById('saveMasterBtn').onclick = async () => {
   } catch(e) { showToast('Помилка: ' + e.message, 'error'); }
 };
 
-// Expose necessary functions globally
 window.changeRole = async (userId, role) => {
   try { await updateDoc(doc(db, 'users', userId), { role }); showToast('Роль змінено', 'success'); } catch(e) { showToast(e.message, 'error'); }
 };
@@ -1049,6 +1041,7 @@ function applySettings(s) {
   if (s.email) document.getElementById('footerEmail').innerHTML = `<i class="fas fa-envelope"></i> ${s.email}`;
 }
 
+// ---- AUTH ----
 async function handleGoogleSignIn() {
   try {
     const result = await signInWithPopup(auth, googleProvider);
@@ -1059,14 +1052,17 @@ async function handleGoogleSignIn() {
         email: user.email,
         name: user.displayName || user.email.split('@')[0],
         photoURL: user.photoURL,
-        role: 'user',
+        role: 'master',
+        status: 'master',
         createdAt: Timestamp.now()
       });
     } else {
-      if (!userDoc.data().role) await updateDoc(doc(db, 'users', user.uid), { role: 'user' });
+      if (!userDoc.data().role || userDoc.data().role === 'user') {
+        await updateDoc(doc(db, 'users', user.uid), { role: 'master' });
+      }
     }
     closeModal('modalAuth');
-    showToast('Ласкаво просимо!', 'success');
+    showToast('Ласкаво просимо, майстре!', 'success');
   } catch(e) {
     let msg = e.message;
     if (msg.includes('auth/unauthorized-domain')) msg = 'Помилка: домен не додано в Firebase Console.';
@@ -1107,14 +1103,14 @@ async function handleMasterSignIn() {
 
 function initAuthTabs() {
   const tabs = document.querySelectorAll('.auth-tab');
-  const googlePanel = document.getElementById('authGooglePanel');
+  const clientPanel = document.getElementById('authClientPanel');
   const masterPanel = document.getElementById('authMasterPanel');
   tabs.forEach(tab => {
     tab.addEventListener('click', () => {
       tabs.forEach(t => t.classList.remove('active'));
       tab.classList.add('active');
-      if (tab.dataset.tab === 'google') { googlePanel.style.display = 'block'; masterPanel.style.display = 'none'; }
-      else { googlePanel.style.display = 'none'; masterPanel.style.display = 'block'; }
+      if (tab.dataset.tab === 'client') { clientPanel.style.display = 'block'; masterPanel.style.display = 'none'; }
+      else { clientPanel.style.display = 'none'; masterPanel.style.display = 'block'; }
     });
   });
   document.getElementById('showMasterRegisterBtn').onclick = (e) => { e.preventDefault(); document.getElementById('masterLoginForm').style.display = 'none'; document.getElementById('masterRegisterForm').style.display = 'block'; };
@@ -1122,7 +1118,7 @@ function initAuthTabs() {
 }
 
 window.openAuthModal = () => {
-  document.querySelector('.auth-tab[data-tab="google"]').click();
+  document.querySelector('.auth-tab[data-tab="client"]').click();
   document.getElementById('masterAuthEmail').value = '';
   document.getElementById('masterAuthPassword').value = '';
   document.getElementById('masterAuthError').style.display = 'none';
@@ -1171,22 +1167,39 @@ onAuthStateChanged(auth, async user => {
   if (activePage?.id === 'page-home') renderHome();
   else if (activePage?.id === 'page-profile') renderProfile(user?.uid);
   else if (activePage?.id === 'page-masters') renderMasters();
+  else if (activePage?.id === 'page-admin' && isAdmin) renderAdmin();
 });
 
+// ---- MOBILE MENU ----
 window.closeMobileMenu = () => {
   document.getElementById('mobileMenu').classList.remove('open');
   document.getElementById('menuOverlay').classList.remove('open');
+  document.getElementById('hamburgerBtn').classList.remove('open');
   document.body.style.overflow = '';
 };
 document.getElementById('hamburgerBtn').onclick = () => {
-  document.getElementById('mobileMenu').classList.toggle('open');
-  document.getElementById('menuOverlay').classList.toggle('open');
-  document.body.style.overflow = document.getElementById('mobileMenu').classList.contains('open') ? 'hidden' : '';
+  const menu = document.getElementById('mobileMenu');
+  const overlay = document.getElementById('menuOverlay');
+  const hamburger = document.getElementById('hamburgerBtn');
+  const isOpen = menu.classList.contains('open');
+  if (isOpen) {
+    menu.classList.remove('open');
+    overlay.classList.remove('open');
+    hamburger.classList.remove('open');
+    document.body.style.overflow = '';
+  } else {
+    menu.classList.add('open');
+    overlay.classList.add('open');
+    hamburger.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
 };
 document.getElementById('menuOverlay').onclick = closeMobileMenu;
 
+// ---- SCROLL ----
 window.addEventListener('scroll', () => document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 40));
 
+// ---- CURSOR ----
 if (window.innerWidth > 1024) {
   const cur = document.getElementById('cursor'), ring = document.getElementById('cursorRing');
   let mx=0, my=0, rx=0, ry=0;
@@ -1199,6 +1212,7 @@ if (window.innerWidth > 1024) {
   })();
 }
 
+// ---- PRICE LIST ----
 window.openPriceList = function() {
   document.getElementById('modalPriceList').classList.add('open');
 };
@@ -1217,6 +1231,7 @@ window.togglePriceCategory = function(headerEl) {
   }
 };
 
+// ---- INIT ----
 (function() {
   const s = JSON.parse(localStorage.getItem('siteSettings') || '{}');
   applySettings(s);
@@ -1226,3 +1241,4 @@ initAuthTabs();
 
 window.renderMasters = renderMasters;
 window.renderAdmin = renderAdmin;
+window.renderHome = renderHome;
