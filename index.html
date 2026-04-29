@@ -2,7 +2,7 @@
 <html lang="uk">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
   <title>Перукарня Салон ВПУ-19</title>
   <meta name="description" content="Навчальна перукарня Вищого Професійного Училища №19">
   <meta property="og:title" content="Перукарня Салон ВПУ-19">
@@ -87,7 +87,13 @@
   <div class="feed-section">
     <div class="feed-header">
       <h2>Стрічка <em>робіт</em></h2>
-      <p>Останні роботи наших майстрів</p>
+      <p>Останні роботи наших майстрів та учнів</p>
+    </div>
+    <!-- Категорії: Майстри / Учні -->
+    <div class="feed-tabs" id="feedTabs">
+      <button class="feed-tab active" data-filter="all">Усі</button>
+      <button class="feed-tab" data-filter="master"><i class="fas fa-user-tie"></i> Майстри</button>
+      <button class="feed-tab" data-filter="student"><i class="fas fa-user-graduate"></i> Учні</button>
     </div>
     <div id="feedContainer"><div class="loading-wrap"><div class="spinner"></div><div>Завантаження...</div></div></div>
   </div>
@@ -154,7 +160,7 @@
           <button class="btn-primary" onclick="openAddMasterModal()"><i class="fas fa-plus-circle"></i> Додати майстра</button>
         </div>
         <table class="admin-masters-table">
-          <thead><tr><th>Фото</th><th>Ім'я</th><th>Email</th><th>Роль</th><th>Дії</th></tr></thead>
+          <thead><tr><th>Фото</th><th>Ім'я</th><th>Email</th><th>Роль</th><th>Статус</th><th>Дії</th></tr></thead>
           <tbody id="adminMastersTbody"></tbody>
         </table>
       </div>
@@ -188,7 +194,6 @@
     </div>
     <div class="modal-body">
       <div class="price-categories">
-        <!-- СТРИЖКА -->
         <div class="price-category">
           <div class="price-cat-header open" onclick="togglePriceCategory(this)">
             <div class="price-cat-title"><i class="fas fa-cut"></i> Стрижка</div>
@@ -205,7 +210,6 @@
             <div class="price-row"><span class="price-row-num">8.</span><span class="price-row-name">Миття голови</span><span class="price-row-price">50<span>грн</span></span></div>
           </div>
         </div>
-        <!-- ФАРБУВАННЯ -->
         <div class="price-category">
           <div class="price-cat-header" onclick="togglePriceCategory(this)">
             <div class="price-cat-title"><i class="fas fa-paint-brush"></i> Фарбування</div>
@@ -220,7 +224,6 @@
             <div class="price-row"><span class="price-row-num">14.</span><span class="price-row-name">Колорування волосся</span><span class="price-row-price">500–600<span>грн</span></span></div>
           </div>
         </div>
-        <!-- УКЛАДКА -->
         <div class="price-category">
           <div class="price-cat-header" onclick="togglePriceCategory(this)">
             <div class="price-cat-title"><i class="fas fa-wind"></i> Укладка</div>
@@ -234,7 +237,6 @@
             <div class="price-row"><span class="price-row-num">19.</span><span class="price-row-name">Накрутка на електрощипці довгого волосся</span><span class="price-row-price">400<span>грн</span></span></div>
           </div>
         </div>
-        <!-- ХІМІЧНА ЗАВИВКА -->
         <div class="price-category">
           <div class="price-cat-header" onclick="togglePriceCategory(this)">
             <div class="price-cat-title"><i class="fas fa-spa"></i> Хімічна завивка</div>
@@ -246,7 +248,6 @@
             <div class="price-row"><span class="price-row-num">22.</span><span class="price-row-name">Хімічна завивка довгого волосся</span><span class="price-row-price">400<span>грн</span></span></div>
           </div>
         </div>
-        <!-- ІНШІ ПОСЛУГИ -->
         <div class="price-category">
           <div class="price-cat-header" onclick="togglePriceCategory(this)">
             <div class="price-cat-title"><i class="fas fa-gem"></i> Інші послуги</div>
@@ -329,6 +330,7 @@
       <div class="form-group"><label class="form-label">Email *</label><input class="form-input" id="masterEmail" type="email" placeholder="email@example.com"></div>
       <div class="form-group" id="masterPasswordGroup"><label class="form-label">Пароль *</label><input class="form-input" type="password" id="masterPassword" placeholder="Мінімум 6 символів"></div>
       <div class="form-group"><label class="form-label">Роль</label><select id="masterRole" class="form-select"><option value="master">Майстер</option><option value="admin">Адміністратор</option></select></div>
+      <div class="form-group"><label class="form-label">Статус</label><select id="masterStatus" class="form-select"><option value="master">Майстер</option><option value="student">Учень</option></select></div>
       <div class="form-group"><label class="form-label">Про себе</label><textarea class="form-textarea" id="masterBio" rows="2" placeholder="Коротко про майстра..."></textarea></div>
     </div>
     <div class="modal-footer">
@@ -338,20 +340,24 @@
   </div>
 </div>
 
-<!-- MODAL: CREATE POST -->
+<!-- MODAL: CREATE POST (multiple media) -->
 <div id="modalPost" class="modal-overlay">
   <div class="modal">
     <div class="modal-header">
       <h2 class="modal-title"><i class="fas fa-camera"></i> Нова робота</h2>
+      <button class="modal-close" onclick="closeModal('modalPost')"><i class="fas fa-times"></i></button>
     </div>
     <div class="modal-body">
       <div class="form-group">
-        <label class="form-label">Фото *</label>
-        <div class="form-photo-upload" id="postPhotoArea" style="min-height:160px">
-          <i class="fas fa-image"></i>
-          <!-- ЗМІНЕНО: додано підтримку відео -->
-          <input type="file" id="postPhotoInput" accept="image/*,video/*">
-          <div class="upload-hint">Натисніть або перетягніть фото або відео</div>
+        <label class="form-label">Медіа *</label>
+        <div class="media-upload-area" id="mediaUploadArea">
+          <div class="media-upload-buttons">
+            <button type="button" class="btn-secondary btn-sm" id="addPhotosBtn"><i class="fas fa-images"></i> Додати фото (макс. 10)</button>
+            <button type="button" class="btn-secondary btn-sm" id="addVideosBtn"><i class="fas fa-video"></i> Додати відео (макс. 3)</button>
+          </div>
+          <input type="file" id="mediaInput" accept="image/*,video/*" multiple style="display:none;">
+          <div class="media-preview-grid" id="mediaPreviewGrid"></div>
+          <div class="media-hint" id="mediaHint">Підтримуються лише фото або лише відео в одному пості</div>
         </div>
       </div>
       <div class="form-group"><label class="form-label">Опис роботи</label><textarea class="form-textarea" id="postCaption" rows="3" placeholder="Розкажіть про роботу — техніка, стиль, деталі..."></textarea></div>
@@ -368,6 +374,7 @@
   <div class="modal">
     <div class="modal-header">
       <h2 class="modal-title"><i class="fas fa-user-edit"></i> Редагувати профіль</h2>
+      <button class="modal-close" onclick="closeModal('modalEditProfile')"><i class="fas fa-times"></i></button>
     </div>
     <div class="modal-body">
       <div class="form-group">
@@ -379,10 +386,28 @@
         </div>
       </div>
       <div class="form-group"><label class="form-label">Ім'я</label><input class="form-input" id="editProfileName" placeholder="Ваше ім'я"></div>
+      <div class="form-group" id="editStatusGroup" style="display:none">
+        <label class="form-label">Статус</label>
+        <select id="editProfileStatus" class="form-select">
+          <option value="master">Майстер</option>
+          <option value="student">Учень</option>
+        </select>
+      </div>
       <div class="form-group"><label class="form-label">Про себе</label><textarea class="form-textarea" id="editProfileBio" rows="3" placeholder="Розкажіть про себе..."></textarea></div>
       <div class="form-group" id="editPhoneGroup" style="display:none">
         <label class="form-label">Номер телефону</label>
         <input class="form-input" id="editProfilePhone" type="tel" placeholder="+380 XX XXX XX XX">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Соціальні мережі</label>
+        <div class="social-inputs">
+          <div class="social-input-row"><i class="fab fa-instagram"></i><input class="form-input" id="editInstagram" placeholder="https://instagram.com/..."></div>
+          <div class="social-input-row"><i class="fab fa-tiktok"></i><input class="form-input" id="editTiktok" placeholder="https://tiktok.com/@..."></div>
+          <div class="social-input-row"><i class="fab fa-facebook"></i><input class="form-input" id="editFacebook" placeholder="https://facebook.com/..."></div>
+          <div class="social-input-row"><i class="fab fa-telegram"></i><input class="form-input" id="editTelegram" placeholder="https://t.me/..."></div>
+          <div class="social-input-row"><i class="fab fa-youtube"></i><input class="form-input" id="editYoutube" placeholder="https://youtube.com/@..."></div>
+          <div class="social-input-row"><i class="fas fa-link"></i><input class="form-input" id="editOtherLink" placeholder="Інше посилання"></div>
+        </div>
       </div>
     </div>
     <div class="modal-footer">
@@ -422,6 +447,5 @@
 
 <!-- Підключення основного скрипта -->
 <script type="module" src="js/script.js"></script>
-
 </body>
 </html>
