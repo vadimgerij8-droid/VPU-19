@@ -17,6 +17,7 @@
   --radius-md: 16px;
   --radius-lg: 24px;
 }
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html {
   scroll-behavior: smooth;
@@ -399,7 +400,7 @@ nav.scrolled { border-bottom-color: var(--gray-light); padding: clamp(10px, 1.5v
   margin-top: 3px; letter-spacing: .06em;
 }
 
-/* CAROUSEL */
+/* CAROUSEL (не змінював) */
 .post-media-carousel {
   position: relative; background: #000; overflow: hidden;
   width: 100%; max-height: clamp(300px, 60vh, 600px); user-select: none;
@@ -643,74 +644,72 @@ nav.scrolled { border-bottom-color: var(--gray-light); padding: clamp(10px, 1.5v
 .master-card-rating-row .rating-avg { font-size: 1rem; }
 .master-card-rating-row .rating-count { font-size: .63rem; }
 
-/* PROFILE LAYOUT */
+/* ========================
+   НОВИЙ ДИЗАЙН ПРОФІЛЮ
+   ======================== */
+/* Основний контейнер — для мобільних одна колонка */
 .profile-layout {
-  display: grid;
-  grid-template-columns: minmax(min(260px, 100%), 340px) 1fr;
-  min-height: 100vh;
-  padding-top: clamp(60px, 12vw, 100px);
-  max-width: 100%;
-  overflow-x: hidden;
-}
-.profile-sidebar {
-  background: linear-gradient(180deg, #111 0%, #0a0a0a 100%);
-  color: #fff;
-  padding: clamp(24px, 4vw, 48px) clamp(20px, 3vw, 36px);
-  position: sticky;
-  top: clamp(60px, 12vw, 100px);
-  height: calc(100vh - clamp(60px, 12vw, 100px));
-  overflow-y: auto;
-  border-right: 1px solid rgba(255,255,255,0.08);
   display: flex;
   flex-direction: column;
-  gap: 20px;
-}
-.profile-sidebar::-webkit-scrollbar { width: 4px; }
-.profile-sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
-.profile-main {
-  padding: clamp(20px, 4vw, 48px) clamp(16px, 4vw, 40px);
+  min-height: 100vh;
+  padding-top: clamp(70px, 12vw, 100px); /* відступ під навігацію */
   background: var(--white);
-  min-width: 0;
 }
-.profile-stats {
-  display: flex;
-  gap: clamp(10px, 2vw, 16px);
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-}
-.profile-stat {
-  text-align: center;
-  flex: 1 1 0;
-  min-width: 70px;
-  background: rgba(255,255,255,0.04);
-  border-radius: var(--radius-md);
-  padding: 12px 8px;
-  backdrop-filter: blur(4px);
-}
-.profile-stat-value {
-  font-family: var(--font-display);
-  font-size: clamp(1.5rem, 3vw, 2rem);
-  font-weight: 300;
-  line-height: 1.2;
-  display: block;
-}
-.profile-stat-label {
-  font-size: 0.6rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: rgba(255,255,255,0.4);
-  margin-top: 4px;
-}
-.profile-avatar {
-  width: clamp(110px, 20vw, 150px);
-  height: clamp(110px, 20vw, 150px);
-  border-radius: 50%;
-  background: var(--gray-dark);
-  margin-bottom: 16px;
+
+/* Картка профілю — загальний блок, що об’єднує всю інформацію */
+.profile-card {
+  background: white;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  box-shadow: var(--shadow);
+  margin: 0 clamp(12px, 4vw, 24px) clamp(24px, 4vw, 32px);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: var(--transition);
+}
+
+/* Шапка профілю */
+.profile-header {
   position: relative;
-  border: 3px solid rgba(201,168,76,0.25);
-  box-shadow: 0 0 30px rgba(201,168,76,0.08);
+  background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%);
+  color: #fff;
+  padding: clamp(32px, 6vw, 56px) clamp(20px, 4vw, 40px) clamp(24px, 4vw, 36px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  overflow: hidden;
+}
+
+/* Декоративний круг у фоні */
+.profile-header::before {
+  content: '';
+  position: absolute;
+  top: -40%;
+  right: -20%;
+  width: 250px;
+  height: 250px;
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 50%;
+  animation: rotate 25s linear infinite;
+}
+
+/* Аватар */
+.profile-avatar {
+  width: clamp(110px, 25vw, 160px);
+  height: clamp(110px, 25vw, 160px);
+  border-radius: 50%;
+  border: 4px solid var(--gold);
+  box-shadow: 0 0 30px rgba(201,168,76,0.2);
+  overflow: hidden;
+  background: var(--gray-dark);
+  position: relative;
+  z-index: 1;
+  margin-bottom: 16px;
+  transition: transform 0.3s ease;
+}
+.profile-avatar:hover {
+  transform: scale(1.03);
 }
 .profile-avatar img {
   width: 100%;
@@ -729,126 +728,215 @@ nav.scrolled { border-bottom-color: var(--gray-light); padding: clamp(10px, 1.5v
   font-size: 3.5rem;
   color: rgba(255,255,255,0.3);
 }
+
+/* Ім’я */
 .profile-name {
   font-family: var(--font-display);
-  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  font-size: clamp(1.8rem, 5vw, 2.8rem);
   font-weight: 300;
-  margin-bottom: 6px;
+  letter-spacing: 0.02em;
+  margin-bottom: 12px;
   line-height: 1.2;
   word-break: break-word;
+  position: relative;
+  z-index: 1;
 }
+
+/* Бейдж ролі – ОДНЕ СЛОВО: Майстер або Учень */
 .profile-role-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 0.68rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--gold);
-  border: 1px solid rgba(201,168,76,0.4);
-  padding: 6px 14px;
-  margin-bottom: 8px;
-  border-radius: 25px;
-  background: rgba(201,168,76,0.06);
-  backdrop-filter: blur(4px);
-}
-.profile-role-badge i { font-size: 0.8rem; }
-.profile-status-badge {
-  display: inline-block;
-  font-size: 0.58rem;
-  letter-spacing: 0.12em;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.08);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.2);
+  padding: 8px 22px;
+  border-radius: 40px;
+  font-size: clamp(0.8rem, 1.8vw, 0.95rem);
+  font-weight: 700;
+  letter-spacing: 0.15em;
   text-transform: uppercase;
   color: #fff;
-  background: rgba(255,255,255,0.08);
-  padding: 5px 12px;
-  border-radius: 20px;
-  margin-left: 8px;
-  font-weight: 500;
-  border: 1px solid rgba(255,255,255,0.1);
-}
-.profile-status-badge.master-status { background: rgba(201,168,76,0.15); color: var(--gold); border-color: rgba(201,168,76,0.3); }
-.profile-bio {
-  font-size: 0.85rem;
-  line-height: 1.7;
-  color: rgba(255,255,255,0.55);
+  position: relative;
+  z-index: 1;
   margin-bottom: 16px;
+  transition: all 0.3s ease;
 }
-.profile-sidebar-stars {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 6px;
-}
-.profile-sidebar-stars .star-icon {
-  color: rgba(255,255,255,0.15);
+.profile-role-badge i {
   font-size: 1.1rem;
 }
-.profile-sidebar-stars .star-icon.filled {
+/* Варіації для Майстра (золотий акцент) та Учня (срібний) */
+.profile-role-badge.master {
+  background: rgba(201,168,76,0.15);
+  border-color: rgba(201,168,76,0.5);
   color: var(--gold);
+  box-shadow: 0 0 20px rgba(201,168,76,0.1);
 }
-.profile-avg-label {
-  font-size: 0.68rem;
-  color: rgba(255,255,255,0.4);
-  letter-spacing: 0.08em;
-  margin-bottom: 16px;
-  font-weight: 500;
+.profile-role-badge.student {
+  background: rgba(255,255,255,0.1);
+  border-color: rgba(255,255,255,0.35);
+  color: #d4d4d4;
 }
-.profile-phone-display {
-  font-size: 0.85rem;
+
+/* Біографія */
+.profile-bio {
+  font-size: clamp(0.85rem, 1.6vw, 0.95rem);
+  line-height: 1.65;
   color: rgba(255,255,255,0.7);
-  margin: 8px 0 12px;
+  max-width: 500px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 1;
+  padding: 0 8px;
+}
+
+/* Блок статистики всередині шапки */
+.profile-stats {
+  display: flex;
+  justify-content: center;
+  gap: clamp(14px, 4vw, 32px);
+  margin-top: clamp(20px, 4vw, 32px);
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  flex-wrap: wrap;
+}
+.profile-stat {
+  text-align: center;
+  background: rgba(255,255,255,0.05);
+  backdrop-filter: blur(4px);
+  padding: 14px clamp(12px, 3vw, 24px);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255,255,255,0.08);
+  min-width: 80px;
+  flex: 1 1 100px;
+  transition: background 0.3s;
+}
+.profile-stat:hover {
+  background: rgba(255,255,255,0.1);
+}
+.profile-stat-value {
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 3.5vw, 2.4rem);
+  font-weight: 300;
+  color: #fff;
+  line-height: 1.1;
+  display: block;
+}
+.profile-stat-label {
+  font-size: clamp(0.6rem, 1vw, 0.68rem);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.5);
+  margin-top: 4px;
+}
+
+/* Блок контактів та соцмереж */
+.profile-contact-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: clamp(12px, 2vw, 24px);
+  padding: clamp(16px, 4vw, 28px) clamp(20px, 4vw, 40px);
+  background: #fafaf7;
+  border-top: 1px solid var(--gray-light);
+}
+
+.profile-phone-display {
+  font-size: clamp(0.85rem, 1.5vw, 0.95rem);
+  color: var(--black);
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 16px;
-  background: rgba(255,255,255,0.04);
-  border-radius: var(--radius-sm);
-  border: 1px solid rgba(255,255,255,0.06);
+  gap: 8px;
+  padding: 10px 18px;
+  background: white;
+  border-radius: 30px;
+  border: 1px solid var(--gray-light);
+  white-space: nowrap;
 }
 .profile-phone-display i {
   color: var(--gold);
+  font-size: 1.1rem;
 }
 
-/* SOCIAL LINKS IN PROFILE SIDEBAR */
 .profile-social-links {
   display: flex;
+  gap: 8px;
   flex-wrap: wrap;
-  gap: 10px;
-  margin: 8px 0 16px;
+  justify-content: center;
 }
 .profile-social-links a {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  background: rgba(255,255,255,0.06);
-  color: rgba(255,255,255,0.7);
-  font-size: 1rem;
-  transition: all 0.3s ease;
-  border: 1px solid rgba(255,255,255,0.08);
+  background: white;
+  border: 1px solid var(--gray-light);
+  color: var(--gray-dark);
+  font-size: 1.1rem;
+  transition: all 0.25s ease;
   text-decoration: none;
 }
 .profile-social-links a:hover {
   background: var(--gold);
   color: #0a0a0a;
   border-color: var(--gold);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(201,168,76,0.25);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(201,168,76,0.3);
+}
+
+/* Кнопка редагування */
+.btn-edit-profile {
+  margin: 0 auto;
+  max-width: 280px;
+  width: 100%;
+  padding: 14px 24px;
+  background: transparent;
+  color: var(--black);
+  border: 1px solid var(--black);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 30px;
+  background: white;
+}
+.btn-edit-profile:hover {
+  background: var(--black);
+  color: white;
+}
+
+/* Основний вміст (таби) */
+.profile-main {
+  padding: clamp(20px, 4vw, 40px) clamp(12px, 4vw, 24px);
+  background: var(--white);
 }
 
 .profile-tabs {
   display: flex;
   gap: 4px;
-  margin-bottom: 28px;
   border-bottom: 1px solid var(--gray-light);
   overflow-x: auto;
   white-space: nowrap;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  margin-bottom: 24px;
   padding-bottom: 2px;
 }
-.profile-tabs::-webkit-scrollbar { display: none; }
+.profile-tabs::-webkit-scrollbar {
+  display: none;
+}
 .profile-tab {
   padding: clamp(8px, 1.5vw, 12px) clamp(12px, 2vw, 20px);
   font-size: clamp(0.65rem, 1.2vw, 0.75rem);
@@ -867,16 +955,24 @@ nav.scrolled { border-bottom-color: var(--gray-light); padding: clamp(10px, 1.5v
   font-family: var(--font-body);
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   white-space: nowrap;
 }
-.profile-tab i { font-size: 1rem; }
+.profile-tab i {
+  font-size: 1rem;
+}
 .profile-tab.active {
   color: var(--black);
   border-bottom-color: var(--black);
 }
-.profile-tab-pane { display: none; }
-.profile-tab-pane.active { display: block; }
+.profile-tab-pane {
+  display: none;
+}
+.profile-tab-pane.active {
+  display: block;
+}
+
+/* Пости в профілі (сітка) */
 .profile-posts-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(clamp(110px, 25vw, 180px), 1fr));
@@ -890,13 +986,15 @@ nav.scrolled { border-bottom-color: var(--gray-light); padding: clamp(10px, 1.5v
   position: relative;
   border-radius: var(--radius-sm);
 }
-.profile-post-item img, .profile-post-item video {
+.profile-post-item img,
+.profile-post-item video {
   width: 100%;
   height: 100%;
   object-fit: cover;
   transition: transform 0.4s ease;
 }
-.profile-post-item:hover img, .profile-post-item:hover video {
+.profile-post-item:hover img,
+.profile-post-item:hover video {
   transform: scale(1.06);
 }
 .profile-post-overlay {
@@ -915,7 +1013,11 @@ nav.scrolled { border-bottom-color: var(--gray-light); padding: clamp(10px, 1.5v
   gap: 6px;
   backdrop-filter: blur(2px);
 }
-.profile-post-item:hover .profile-post-overlay { opacity: 1; }
+.profile-post-item:hover .profile-post-overlay {
+  opacity: 1;
+}
+
+/* Відгуки */
 .profile-reviews-list {
   display: flex;
   flex-direction: column;
@@ -928,7 +1030,9 @@ nav.scrolled { border-bottom-color: var(--gray-light); padding: clamp(10px, 1.5v
   transition: var(--transition);
   border-radius: var(--radius-md);
 }
-.profile-review-card:hover { box-shadow: var(--shadow); }
+.profile-review-card:hover {
+  box-shadow: var(--shadow);
+}
 .profile-review-card-meta {
   display: flex;
   align-items: flex-start;
@@ -936,14 +1040,31 @@ nav.scrolled { border-bottom-color: var(--gray-light); padding: clamp(10px, 1.5v
   margin-bottom: 12px;
   flex-wrap: wrap;
 }
-.profile-review-card-info { flex: 1; }
-.profile-review-card-author { font-weight: 600; font-size: 0.9rem; }
-.profile-review-card-post {
-  font-size: 0.7rem; color: var(--gray-mid);
-  letter-spacing: 0.06em; margin-top: 2px;
+.profile-review-card-info {
+  flex: 1;
 }
-.profile-review-card-date { font-size: 0.7rem; color: var(--gray-mid); white-space: nowrap; }
-.profile-review-card-text { font-size: 0.85rem; line-height: 1.65; color: var(--gray-dark); }
+.profile-review-card-author {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.profile-review-card-post {
+  font-size: 0.7rem;
+  color: var(--gray-mid);
+  letter-spacing: 0.06em;
+  margin-top: 2px;
+}
+.profile-review-card-date {
+  font-size: 0.7rem;
+  color: var(--gray-mid);
+  white-space: nowrap;
+}
+.profile-review-card-text {
+  font-size: 0.85rem;
+  line-height: 1.65;
+  color: var(--gray-dark);
+}
+
+/* Рейтинг стрижок */
 .haircut-ratings-list {
   display: flex;
   flex-direction: column;
@@ -956,7 +1077,6 @@ nav.scrolled { border-bottom-color: var(--gray-light); padding: clamp(10px, 1.5v
   display: flex;
   align-items: center;
   gap: 16px;
-  transition: var(--transition);
   border-radius: var(--radius-md);
   flex-wrap: wrap;
 }
@@ -968,33 +1088,67 @@ nav.scrolled { border-bottom-color: var(--gray-light); padding: clamp(10px, 1.5v
   background: var(--gray-light);
   border-radius: var(--radius-sm);
 }
-.haircut-rating-info { flex: 1; min-width: 180px; }
-.haircut-rating-caption { font-size: 0.9rem; font-weight: 500; margin-bottom: 8px; color: var(--black); }
-.haircut-rating-stats { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.haircut-rating-avg { font-family: var(--font-display); font-size: 1.6rem; font-weight: 300; line-height: 1; }
-.haircut-rating-count { font-size: 0.7rem; color: var(--gray-mid); }
-.btn-edit-profile {
-  width: 100%;
-  margin-top: 8px;
-  padding: 14px;
-  background: transparent;
-  color: white;
-  border: 1px solid rgba(255,255,255,0.3);
-  font-family: var(--font-body);
-  font-size: 0.75rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: var(--transition);
+.haircut-rating-info {
+  flex: 1;
+  min-width: 180px;
+}
+.haircut-rating-caption {
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: var(--black);
+}
+.haircut-rating-stats {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  border-radius: 30px;
-  backdrop-filter: blur(4px);
+  gap: 12px;
+  flex-wrap: wrap;
 }
-.btn-edit-profile i { font-size: 1rem; }
-.btn-edit-profile:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.8); }
+.haircut-rating-avg {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 300;
+  line-height: 1;
+}
+.haircut-rating-count {
+  font-size: 0.7rem;
+  color: var(--gray-mid);
+}
+
+/* Адаптація для великих екранів (планшети та десктоп) */
+@media (min-width: 768px) {
+  .profile-layout {
+    flex-direction: row;
+    padding-top: clamp(80px, 10vw, 120px);
+  }
+
+  .profile-card {
+    flex: 0 0 380px;
+    margin: 0 0 0 clamp(16px, 4vw, 40px);
+    border-radius: var(--radius-lg);
+    position: sticky;
+    top: clamp(80px, 10vw, 120px);
+    align-self: flex-start;
+    max-height: calc(100vh - 80px);
+    overflow-y: auto;
+    box-shadow: var(--shadow);
+  }
+
+  .profile-main {
+    flex: 1;
+    padding: clamp(24px, 4vw, 48px) clamp(20px, 4vw, 48px);
+  }
+}
+
+@media (min-width: 1024px) {
+  .profile-card {
+    max-width: 420px;
+  }
+}
+
+/* ====================
+   Кінець ПРОФІЛЮ
+   ==================== */
 
 /* ADMIN */
 .admin-layout {
@@ -1081,7 +1235,7 @@ nav.scrolled { border-bottom-color: var(--gray-light); padding: clamp(10px, 1.5v
 .table-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .table-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
-/* BUTTONS */
+/* BUTTONS (загальні) */
 .btn-primary {
   padding: clamp(12px, 2vw, 14px) clamp(18px, 3vw, 28px);
   background: var(--black); color: var(--white);
@@ -1367,12 +1521,10 @@ footer {
   align-items: center; font-size: .65rem; color: rgba(255,255,255,.3);
 }
 
-/* RESPONSIVE */
+/* ЗАГАЛЬНІ АДАПТИВНІ ПРАВИЛА */
 @media (max-width: 1024px) {
   .hero { grid-template-columns: 1fr; }
   .hero-right { display: none; }
-  .profile-layout { grid-template-columns: 1fr; padding-top: clamp(60px, 12vw, 80px); }
-  .profile-sidebar { position: static; height: auto; border-right: none; border-bottom: 1px solid rgba(255,255,255,0.1); border-radius: 0; }
   .admin-layout { grid-template-columns: 1fr; }
   .admin-sidebar { display: none; }
 }
