@@ -1,3 +1,6 @@
+/* ========================================
+   ROOT VARIABLES (оновлені)
+   ======================================== */
 :root {
   --black: #0a0a0a;
   --dark: #111111;
@@ -1200,7 +1203,7 @@ nav.scrolled { border-bottom-color: var(--gray-light); padding: clamp(10px, 1.5v
 .modal-close:hover { background: var(--black); color: white; border-color: var(--black); }
 .modal-body { padding: clamp(18px, 3vw, 28px) clamp(18px, 3vw, 36px); }
 .modal-footer {
-  padding: clamp(14px, 2vw, 20px) clamp(18px, 3vw, 36px) clamp(18px, 3vw, 28px);
+  padding: clamp(14px, 2vw, 20px) clamp(18px, 3vw, 36px) clamp(18px, 2vw, 28px);
   display: flex; gap: 12px; justify-content: flex-end;
   border-top: 1px solid var(--gray-light); flex-wrap: wrap;
 }
