@@ -582,42 +582,41 @@ async function renderMasters() {
   }
 }
 
-// ---- PROFILE ----
-function buildProfilePostsGrid(posts) {
-  return posts.map(p => {
-    const media = getPostMediaArray(p);
-    const thumbUrl = media.length ? media[0].url : 'https://placehold.co/400?text=No+Image';
-    const overlayAvg = p.ratingCount > 0 ? (p.ratingSum/p.ratingCount).toFixed(1) : '—';
-    const isVideo = media.length && media[0].type === 'video';
-    return `<div class="profile-post-item" onclick="navigate('home', null, '${p.id}')">
-      ${isVideo ? `<video src="${esc(thumbUrl)}" muted preload="metadata" style="width:100%;height:100%;object-fit:cover"></video>` : `<img src="${esc(thumbUrl)}" loading="lazy" onerror="this.src='https://placehold.co/400?text=No+Image'">`}
-      <div class="profile-post-overlay"><i class="fas fa-star"></i> ${overlayAvg}</div>
-    </div>`;
-  }).join('');
-}
-
+// ---- PROFILE (ЗАМІНЕНИЙ) ----
 async function renderProfile(userId) {
   const container = document.getElementById('profileContainer');
   if (!userId) {
-    container.innerHTML = '<div style="padding:160px 48px;text-align:center"><p style="font-size:.9rem;color:var(--gray-mid)">Увійдіть, щоб переглянути профіль</p><button class="btn-primary" style="margin-top:24px" onclick="openAuthModal()"><i class="fas fa-sign-in-alt"></i> Увійти</button></div>';
+    container.innerHTML = `
+      <div style="padding:160px 48px;text-align:center">
+        <p style="font-size:.9rem;color:var(--gray-mid)">Увійдіть, щоб переглянути профіль</p>
+        <button class="btn-primary" style="margin-top:24px" onclick="openAuthModal()">
+          <i class="fas fa-sign-in-alt"></i> Увійти
+        </button>
+      </div>`;
     return;
   }
   container.innerHTML = '<div class="loading-wrap" style="padding:160px"><div class="spinner"></div></div>';
   try {
     const userSnap = await getDoc(doc(db, 'users', userId));
-    if (!userSnap.exists()) { container.innerHTML = '<div style="padding:120px;text-align:center">Користувача не знайдено</div>'; return; }
+    if (!userSnap.exists()) {
+      container.innerHTML = '<div style="padding:120px;text-align:center">Користувача не знайдено</div>';
+      return;
+    }
     const user = userSnap.data();
-    const postsQuery = query(collection(db, 'posts'), where('authorId', '==', userId));
-    const postsSnap = await getDocs(postsQuery);
+    const postsSnap = await getDocs(query(collection(db, 'posts'), where('authorId', '==', userId)));
     let posts = postsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
     posts.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+
     let rSum = 0, rCount = 0;
     posts.forEach(p => { rSum += p.ratingSum || 0; rCount += p.ratingCount || 0; });
     const avg = rCount > 0 ? (rSum / rCount).toFixed(1) : 0;
+
     const isOwn = currentUser && currentUser.uid === userId;
     const isMaster = user.role === 'master' || user.role === 'admin';
-    const statusClass = user.status === 'student' ? '' : 'master-status';
     const statusLabel = user.status === 'student' ? 'Учень' : 'Майстер';
+    const roleIcon = user.role === 'admin' ? 'fa-crown' : 'fa-scissors';
+
+    // Зібрати відгуки
     const postIds = posts.map(p => p.id);
     let allReviews = [];
     if (postIds.length > 0) {
@@ -627,84 +626,216 @@ async function renderProfile(userId) {
         if (postIds.includes(r.postId)) allReviews.push(r);
       });
     }
+
+    // Соцмережі
     const socialLinks = user.socialLinks || {};
-    const platforms = { instagram: 'fab fa-instagram', tiktok: 'fab fa-tiktok', facebook: 'fab fa-facebook', telegram: 'fab fa-telegram', youtube: 'fab fa-youtube', other: 'fas fa-link' };
-    const socialIcons = [];
-    for (const [platform, url] of Object.entries(socialLinks)) {
-      if (url && url.trim()) {
-        socialIcons.push(`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" title="${platform}"><i class="${platforms[platform] || 'fas fa-link'}"></i></a>`);
-      }
-    }
-    const socialHtml = socialIcons.length ? `<div class="profile-social-links">${socialIcons.join('')}</div>` : '';
+    const platforms = {
+      instagram: 'fab fa-instagram',
+      tiktok: 'fab fa-tiktok',
+      facebook: 'fab fa-facebook-f',
+      telegram: 'fab fa-telegram',
+      youtube: 'fab fa-youtube',
+      other: 'fas fa-link'
+    };
+    const socialIcons = Object.entries(socialLinks)
+      .filter(([, url]) => url?.trim())
+      .map(([p, url]) => `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer" title="${p}"><i class="${platforms[p] || 'fas fa-link'}"></i></a>`)
+      .join('');
 
-    let reviewsTabHtml = allReviews.length === 0 ? '<p style="color:var(--gray-mid);font-size:.82rem">Відгуків ще немає</p>' :
-      '<div class="profile-reviews-list">' + allReviews.map(r => {
-        const dateStr = r.createdAt ? new Date(r.createdAt.toDate()).toLocaleDateString('uk-UA', { day:'numeric', month:'long', year:'numeric' }) : '';
-        const stars = [1,2,3,4,5].map(i => `<span class="star-icon${i<=(r.rating||0)?' filled':''}"><i class="fas fa-star"></i></span>`).join('');
-        return `<div class="profile-review-card">
-          <div class="profile-review-card-meta"><div class="profile-review-card-info"><div class="profile-review-card-author">${esc(r.authorName || 'Анонім')}</div></div><div class="profile-review-card-date">${dateStr}</div></div>
-          <div style="display:flex;gap:3px;margin-bottom:8px">${stars}</div>
-          <div class="profile-review-card-text">${esc(r.text)}</div></div>`;
-      }).join('') + '</div>';
+    // Зірки для сайдбару
+    const avgNum = parseFloat(avg) || 0;
+    const sidebarStars = [1,2,3,4,5].map(i => {
+      if (i <= Math.floor(avgNum)) return `<i class="fas fa-star star-icon filled"></i>`;
+      if (avgNum > 0 && i - avgNum < 1) return `<i class="fas fa-star-half-stroke star-icon filled"></i>`;
+      return `<i class="fas fa-star star-icon empty"></i>`;
+    }).join('');
 
-    const ratedPosts = posts.filter(p => p.ratingCount > 0).sort((a,b) => (b.ratingSum/b.ratingCount) - (a.ratingSum/a.ratingCount));
-    const unratedPosts = posts.filter(p => !p.ratingCount);
-    const allSorted = [...ratedPosts, ...unratedPosts];
-    let haircutRatingsHtml = allSorted.length === 0 ? '<p style="color:var(--gray-mid);font-size:.82rem">Ще немає публікацій з оцінками</p>' :
-      '<div class="haircut-ratings-list">' + allSorted.map(p => {
-        const pAvg = p.ratingCount > 0 ? (p.ratingSum / p.ratingCount).toFixed(1) : null;
-        const stars = [1,2,3,4,5].map(i => `<span class="star-icon${pAvg && i<=Math.round(pAvg)?' filled':''}"><i class="fas fa-star"></i></span>`).join('');
-        const media = getPostMediaArray(p);
-        let mediaEl = media.length ? (media[0].type === 'video' ? `<video class="haircut-rating-thumb" controls preload="metadata" src="${esc(media[0].url)}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;"></video>` : `<img class="haircut-rating-thumb" src="${esc(media[0].url)}" loading="lazy" onerror="this.style.display='none'">`) : '<div class="haircut-rating-thumb"><i class="fas fa-image" style="font-size:2rem;color:var(--gray-mid)"></i></div>';
-        return `<div class="haircut-rating-item">${mediaEl}<div class="haircut-rating-info"><div class="haircut-rating-caption">${esc(p.caption || 'Без опису')}</div><div class="haircut-rating-stats"><div style="display:flex;gap:3px">${stars}</div><span class="haircut-rating-avg">${pAvg || '—'}</span><span class="haircut-rating-count">${p.ratingCount || 0} оцінок</span></div></div></div>`;
-      }).join('') + '</div>';
+    // Аватар
+    const avatarInner = user.photoURL
+      ? `<img src="${esc(user.photoURL)}" alt="${esc(user.name || '')}">
+         <div class="avatar-status"></div>`
+      : `<div class="profile-avatar-placeholder"><i class="fas fa-user-circle"></i></div>
+         <div class="avatar-status"></div>`;
 
+    // Ім'я (розбити на два рядки якщо є пробіл)
+    const nameParts = (user.name || user.email?.split('@')[0] || 'Користувач').split(' ');
+    const nameHtml = nameParts.length >= 2
+      ? `${esc(nameParts[0])}<br>${esc(nameParts.slice(1).join(' '))}`
+      : esc(nameParts[0]);
+
+    // Лайки (сума по всіх постах)
+    const totalLikes = posts.reduce((s, p) => s + (p.likes || 0), 0);
+    const likesLabel = totalLikes >= 1000 ? (totalLikes / 1000).toFixed(1) + 'k' : totalLikes;
+
+    // --- TAB: POSTS GRID ---
+    const postsGridHtml = posts.length
+      ? `<div class="profile-posts-grid">${posts.map(p => {
+          const media = getPostMediaArray(p);
+          const thumbUrl = media.length ? media[0].url : '';
+          const isVideo = media.length && media[0].type === 'video';
+          const pAvg = p.ratingCount > 0 ? (p.ratingSum / p.ratingCount).toFixed(1) : '—';
+          return `<div class="profile-post-item" onclick="navigate('home', null, '${p.id}')">
+            ${isVideo
+              ? `<video src="${esc(thumbUrl)}" muted preload="metadata" style="width:100%;height:100%;object-fit:cover"></video>`
+              : thumbUrl ? `<img src="${esc(thumbUrl)}" loading="lazy">` : '<div style="width:100%;height:100%;background:var(--gray-light)"></div>'}
+            <div class="profile-post-overlay">
+              <span class="overlay-stat"><i class="fas fa-star"></i> ${pAvg}</span>
+            </div>
+          </div>`;
+        }).join('')}</div>`
+      : '<p style="color:var(--gray-mid);font-size:.82rem;padding:16px 0">Ще немає опублікованих робіт</p>';
+
+    // --- TAB: REVIEWS ---
+    const reviewsHtml = allReviews.length === 0
+      ? '<p style="color:var(--gray-mid);font-size:.82rem;padding:16px 0">Відгуків ще немає</p>'
+      : `<div class="profile-reviews-list">${allReviews.map(r => {
+          const dateStr = r.createdAt
+            ? new Date(r.createdAt.toDate()).toLocaleDateString('uk-UA', { day:'numeric', month:'long', year:'numeric' })
+            : '';
+          const stars = [1,2,3,4,5].map(i =>
+            `<i class="fas fa-star star-icon${i <= (r.rating || 0) ? ' filled' : ' empty'}"></i>`
+          ).join('');
+          return `<div class="profile-review-card">
+            <div class="review-meta">
+              <div class="review-author-info">
+                <div class="review-author">${esc(r.authorName || 'Анонім')}</div>
+              </div>
+              <div class="review-date">${dateStr}</div>
+            </div>
+            <div class="review-stars" style="margin-bottom:10px">${stars}</div>
+            <p class="review-text">${esc(r.text)}</p>
+          </div>`;
+        }).join('')}</div>`;
+
+    // --- TAB: RATINGS ---
+    const ratedPosts = [...posts].sort((a, b) => {
+      const aAvg = a.ratingCount ? a.ratingSum / a.ratingCount : 0;
+      const bAvg = b.ratingCount ? b.ratingSum / b.ratingCount : 0;
+      return bAvg - aAvg;
+    });
+    const ratingsHtml = ratedPosts.length === 0
+      ? '<p style="color:var(--gray-mid);font-size:.82rem;padding:16px 0">Ще немає публікацій</p>'
+      : `<div class="haircut-ratings-list">${ratedPosts.map(p => {
+          const pAvg = p.ratingCount > 0 ? (p.ratingSum / p.ratingCount).toFixed(1) : null;
+          const stars = [1,2,3,4,5].map(i =>
+            `<i class="fas fa-star star-icon${pAvg && i <= Math.round(pAvg) ? ' filled' : ''}"></i>`
+          ).join('');
+          const media = getPostMediaArray(p);
+          const thumbUrl = media.length ? media[0].url : '';
+          const thumbHtml = thumbUrl
+            ? `<img class="haircut-thumb" src="${esc(thumbUrl)}" loading="lazy">`
+            : `<div class="haircut-thumb" style="display:flex;align-items:center;justify-content:center"><i class="fas fa-image" style="font-size:1.5rem;color:var(--gray-mid)"></i></div>`;
+          return `<div class="haircut-rating-item">
+            ${thumbHtml}
+            <div class="haircut-info">
+              <div class="haircut-caption">${esc(p.caption || 'Без опису')}</div>
+              <div class="haircut-stats">
+                <span class="haircut-avg">${pAvg || '—'}</span>
+                <div class="haircut-mini-stars">${stars}</div>
+                <span class="haircut-count">${p.ratingCount || 0} оцінок</span>
+              </div>
+            </div>
+          </div>`;
+        }).join('')}</div>`;
+
+    // ====== РЕНДЕР ======
     container.innerHTML = `
       <div class="profile-layout">
-        <div class="profile-sidebar">
-          <div class="profile-avatar">${user.photoURL ? `<img src="${esc(user.photoURL)}">` : `<div class="profile-avatar-placeholder"><i class="fas fa-user-circle"></i></div>`}</div>
-          <div class="profile-name">${esc(user.name || user.email?.split('@')[0] || 'Користувач')}</div>
-          <div class="profile-role-badge"><i class="fas fa-${user.role === 'admin' ? 'crown' : (user.role==='master'?'cut':'user')}"></i> ${user.role === 'admin' ? 'Адміністратор' : user.role === 'master' ? 'Майстер' : 'Клієнт'}<span class="profile-status-badge ${statusClass}">${statusLabel}</span></div>
-          ${user.bio ? `<p class="profile-bio">${esc(user.bio)}</p>` : ''}
-          ${isMaster && user.phone ? `<div class="profile-phone-display"><i class="fas fa-phone-alt"></i> ${esc(user.phone)}</div>` : ''}
+
+        <aside class="profile-sidebar">
+
+          <div class="avatar-wrap">
+            <div class="profile-avatar">${avatarInner}</div>
+            <div class="avatar-text">
+              <div class="profile-name">${nameHtml}</div>
+              <div class="profile-badges">
+                <span class="badge badge-gold"><i class="fas ${roleIcon}"></i> ${statusLabel}</span>
+                <span class="badge badge-white">
+                  <i class="fas fa-circle" style="font-size:0.5rem;color:#3ecf74"></i> Онлайн
+                </span>
+              </div>
+              <div class="stars-row" style="justify-content:flex-start;margin-top:6px;">
+                ${sidebarStars}
+                <span class="avg-label">${avgNum > 0 ? avg : '—'} · ${allReviews.length} відгуків</span>
+              </div>
+            </div>
+          </div>
+
           <div class="profile-stats">
-            <div class="profile-stat"><span class="profile-stat-value">${posts.length}</span><span class="profile-stat-label">Робіт</span></div>
-            <div class="profile-stat"><span class="profile-stat-value">${rCount}</span><span class="profile-stat-label">Оцінок</span></div>
-            <div class="profile-stat"><span class="profile-stat-value">${allReviews.length}</span><span class="profile-stat-label">Відгуків</span></div>
+            <div class="profile-stat">
+              <span class="stat-value">${posts.length}</span>
+              <span class="stat-label">Постів</span>
+            </div>
+            <div class="profile-stat">
+              <span class="stat-value">${rCount}</span>
+              <span class="stat-label">Оцінок</span>
+            </div>
+            <div class="profile-stat">
+              <span class="stat-value">${allReviews.length}</span>
+              <span class="stat-label">Відгуків</span>
+            </div>
           </div>
-          ${avg > 0 ? `<div class="profile-sidebar-stars">${starsHtml(avg)}</div><div class="profile-avg-label">Середній рейтинг: ${avg}</div>` : '<div class="profile-avg-label">Ще немає оцінок</div>'}
-          ${socialHtml}
+
+          ${user.bio ? `<p class="profile-bio">${esc(user.bio)}</p>` : ''}
+
+          ${isMaster && user.phone
+            ? `<div class="profile-phone"><i class="fas fa-phone-alt"></i> ${esc(user.phone)}</div>`
+            : ''}
+
+          ${socialIcons ? `<div class="profile-social-links">${socialIcons}</div>` : ''}
+
           ${isOwn ? `
-            <button class="btn-edit-profile" onclick="openEditProfileModal()"><i class="fas fa-pen"></i> Редагувати профіль</button>
-            ${isMaster ? `<button class="btn-primary" style="margin-top:8px;width:100%" onclick="openCreatePost()"><i class="fas fa-plus-circle"></i> Нова робота</button>` : ''}
-            <button class="btn-secondary" style="margin-top:8px;width:100%;background:transparent;color:rgba(255,255,255,.5);border-color:rgba(255,255,255,.2)" onclick="doLogout()"><i class="fas fa-sign-out-alt"></i> Вийти</button>
+            <button class="btn-edit-profile" onclick="openEditProfileModal()">
+              <i class="far fa-pen-to-square"></i> Редагувати профіль
+            </button>
+            ${isMaster ? `
+              <button class="btn-primary" style="width:100%" onclick="openCreatePost()">
+                <i class="fas fa-plus-circle"></i> Нова робота
+              </button>` : ''}
+            <button class="btn-secondary"
+              style="width:100%;background:transparent;color:rgba(255,255,255,.5);border-color:rgba(255,255,255,.2)"
+              onclick="doLogout()">
+              <i class="fas fa-sign-out-alt"></i> Вийти
+            </button>
           ` : ''}
-        </div>
-        <div class="profile-main">
-          <div class="profile-tabs">
-            <button class="profile-tab active" onclick="switchProfileTab('works', this)"><i class="far fa-images"></i> Роботи (${posts.length})</button>
-            <button class="profile-tab" onclick="switchProfileTab('reviews', this)"><i class="far fa-comments"></i> Відгуки (${allReviews.length})</button>
-            <button class="profile-tab" onclick="switchProfileTab('ratings', this)"><i class="fas fa-star"></i> Оцінки стрижок</button>
+
+        </aside>
+
+        <main class="profile-main">
+
+          <div class="profile-tabs" id="profileTabs">
+            <button class="profile-tab active" data-ptab="posts">
+              <i class="fas fa-th"></i> Пости
+            </button>
+            <button class="profile-tab" data-ptab="reviews">
+              <i class="far fa-star"></i> Відгуки
+            </button>
+            <button class="profile-tab" data-ptab="ratings">
+              <i class="fas fa-chart-bar"></i> Рейтинг
+            </button>
           </div>
-          <div class="profile-tab-pane active" id="ptab-works">
-            ${posts.length ? `<div class="profile-posts-grid">${buildProfilePostsGrid(posts)}</div>` : '<p style="color:var(--gray-mid);font-size:.82rem">Ще немає опублікованих робіт</p>'}
-          </div>
-          <div class="profile-tab-pane" id="ptab-reviews">${reviewsTabHtml}</div>
-          <div class="profile-tab-pane" id="ptab-ratings">${haircutRatingsHtml}</div>
-        </div>
-      </div>
-    `;
-  } catch(e) {
+
+          <div class="profile-tab-pane active" id="ptab-posts">${postsGridHtml}</div>
+          <div class="profile-tab-pane" id="ptab-reviews">${reviewsHtml}</div>
+          <div class="profile-tab-pane" id="ptab-ratings">${ratingsHtml}</div>
+
+        </main>
+      </div>`;
+
+    // Таби
+    document.querySelectorAll('#profileTabs .profile-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#profileTabs .profile-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.profile-tab-pane').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('ptab-' + btn.dataset.ptab)?.classList.add('active');
+      });
+    });
+
+  } catch (e) {
     container.innerHTML = `<div style="padding:120px;text-align:center;color:var(--gray-mid)">${esc(e.message)}</div>`;
   }
 }
-
-window.switchProfileTab = (tab, el) => {
-  document.querySelectorAll('.profile-tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.profile-tab-pane').forEach(p => p.classList.remove('active'));
-  el.classList.add('active');
-  document.getElementById(`ptab-${tab}`)?.classList.add('active');
-};
 
 // ---- EDIT PROFILE MODAL ----
 window.openEditProfileModal = () => {
