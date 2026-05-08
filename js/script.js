@@ -582,7 +582,9 @@ async function renderMasters() {
   }
 }
 
-// ---- PROFILE (ЗАМІНЕНИЙ) ----
+// ===================
+//   ОНОВЛЕНИЙ ПРОФІЛЬ (видалено "Онлайн" та avatar-status)
+// ===================
 async function renderProfile(userId) {
   const container = document.getElementById('profileContainer');
   if (!userId) {
@@ -650,14 +652,12 @@ async function renderProfile(userId) {
       return `<i class="fas fa-star star-icon empty"></i>`;
     }).join('');
 
-    // Аватар
+    // Аватар (БЕЗ avatar-status)
     const avatarInner = user.photoURL
-      ? `<img src="${esc(user.photoURL)}" alt="${esc(user.name || '')}">
-         <div class="avatar-status"></div>`
-      : `<div class="profile-avatar-placeholder"><i class="fas fa-user-circle"></i></div>
-         <div class="avatar-status"></div>`;
+      ? `<img src="${esc(user.photoURL)}" alt="${esc(user.name || '')}">`
+      : `<div class="profile-avatar-placeholder"><i class="fas fa-user-circle"></i></div>`;
 
-    // Ім'я (розбити на два рядки якщо є пробіл)
+    // Ім'я
     const nameParts = (user.name || user.email?.split('@')[0] || 'Користувач').split(' ');
     const nameHtml = nameParts.length >= 2
       ? `${esc(nameParts[0])}<br>${esc(nameParts.slice(1).join(' '))}`
@@ -665,7 +665,6 @@ async function renderProfile(userId) {
 
     // Лайки (сума по всіх постах)
     const totalLikes = posts.reduce((s, p) => s + (p.likes || 0), 0);
-    const likesLabel = totalLikes >= 1000 ? (totalLikes / 1000).toFixed(1) + 'k' : totalLikes;
 
     // --- TAB: POSTS GRID ---
     const postsGridHtml = posts.length
@@ -750,9 +749,6 @@ async function renderProfile(userId) {
               <div class="profile-name">${nameHtml}</div>
               <div class="profile-badges">
                 <span class="badge badge-gold"><i class="fas ${roleIcon}"></i> ${statusLabel}</span>
-                <span class="badge badge-white">
-                  <i class="fas fa-circle" style="font-size:0.5rem;color:#3ecf74"></i> Онлайн
-                </span>
               </div>
               <div class="stars-row" style="justify-content:flex-start;margin-top:6px;">
                 ${sidebarStars}
