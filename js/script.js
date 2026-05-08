@@ -194,7 +194,7 @@ async function renderHome() {
       if (media.length === 1) {
         const m = media[0];
         if (m.type === 'video') {
-          mediaHtml = `<div class="single-media"><video class="post-media" controls preload="metadata" src="${esc(m.url)}"></video></div>`;
+          mediaHtml = `<div class="single-media"><video class="post-media" controls autoplay muted loop playsinline preload="metadata" src="${esc(m.url)}"></video></div>`;
         } else {
           mediaHtml = `<div class="single-media"><img class="post-image" src="${esc(m.url)}" alt="Робота" loading="lazy"></div>`;
         }
@@ -238,6 +238,7 @@ async function renderHome() {
     feedEl.innerHTML = html;
     initScrollAnimation();
     initCarousels();
+    initVideoAutoplay();
   } catch(e) {
     feedEl.innerHTML = `<div class="empty-state"><h3>Помилка завантаження</h3><p>${esc(e.message)}</p></div>`;
   }
@@ -247,7 +248,7 @@ async function renderHome() {
 function renderCarousel(postId, media) {
   const slides = media.map((m, idx) => {
     if (m.type === 'video') {
-      return `<div class="carousel-slide"><video src="${esc(m.url)}" controls preload="metadata" class="carousel-video"></video></div>`;
+      return `<div class="carousel-slide"><video src="${esc(m.url)}" controls autoplay muted loop playsinline preload="metadata" class="carousel-video"></video></div>`;
     } else {
       return `<div class="carousel-slide"><img src="${esc(m.url)}" alt="Slide ${idx+1}" loading="lazy"></div>`;
     }
@@ -322,6 +323,24 @@ function initScrollAnimation() {
     });
   }, { threshold: 0.1 });
   document.querySelectorAll('.animate-on-scroll').forEach(el => observer.observe(el));
+}
+
+// Нова функція: автоматичне відтворення відео при вході в область перегляду
+function initVideoAutoplay() {
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      const video = entry.target;
+      if (entry.isIntersecting) {
+        video.play().catch(() => {});
+      } else {
+        video.pause();
+      }
+    });
+  }, { threshold: 0.5 });
+
+  document.querySelectorAll('.post-media, .carousel-video').forEach(video => {
+    observer.observe(video);
+  });
 }
 
 // ---- FEED TABS ----
