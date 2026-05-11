@@ -34,6 +34,8 @@
 html {
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
+  /* Запобігаємо смиканню при скролі на iOS */
+  -webkit-overflow-scrolling: touch;
 }
 body {
   font-family: var(--font-body);
@@ -43,6 +45,9 @@ body {
   font-size: clamp(15px, 2.5vw, 16px);
   width: 100%;
   -webkit-tap-highlight-color: transparent;
+  /* Плавність на мобільних */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 img, video {
@@ -61,12 +66,15 @@ img, video {
     background: var(--black); border-radius: 50%; pointer-events: none;
     z-index: 9999; transform: translate(-50%,-50%);
     transition: width .3s, height .3s, background .3s;
+    /* Апаратне прискорення */
+    will-change: transform, width, height;
   }
   .cursor-ring {
     display: block; position: fixed; width: 36px; height: 36px;
     border: 1px solid var(--black); border-radius: 50%; pointer-events: none;
     z-index: 9998; transform: translate(-50%,-50%);
     transition: width .4s, height .4s, border-color .3s, opacity .3s; opacity: .5;
+    will-change: transform, width, height;
   }
 }
 
@@ -102,6 +110,7 @@ img, video {
   transform: translateY(20px);
   transition: opacity 0.6s cubic-bezier(0.25,0.46,0.45,0.94),
               transform 0.6s cubic-bezier(0.25,0.46,0.45,0.94);
+  will-change: opacity, transform;
 }
 .animate-on-scroll.visible { opacity: 1; transform: translateY(0); }
 
@@ -116,6 +125,10 @@ nav {
   border-bottom: 1px solid transparent;
   transition: var(--transition);
   width: 100%; height: var(--nav-h);
+  /* Апаратне прискорення для фіксованого позиціонування */
+  will-change: transform;
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
 }
 nav.scrolled {
   border-bottom-color: var(--gray-light);
@@ -127,6 +140,8 @@ nav.scrolled {
   font-weight: 600; letter-spacing: .15em; text-transform: uppercase;
   color: var(--black); cursor: pointer; z-index: 101;
   transition: var(--transition); display: flex; align-items: center;
+  /* touch-action для уникнення затримки натискання */
+  touch-action: manipulation;
 }
 .nav-logo i { margin-right: 8px; color: var(--gold); font-size: 1.1em; }
 .nav-links { display: flex; gap: clamp(20px,4vw,40px); list-style: none; }
@@ -135,6 +150,7 @@ nav.scrolled {
   letter-spacing: .12em; text-transform: uppercase; color: var(--gray-dark);
   text-decoration: none; position: relative; transition: var(--transition);
   cursor: pointer; display: flex; align-items: center; gap: 6px;
+  touch-action: manipulation;
 }
 .nav-links a i { font-size: 1rem; color: var(--gray-mid); transition: var(--transition); }
 .nav-links a:hover i { color: var(--black); }
@@ -151,6 +167,7 @@ nav.scrolled {
   border: 1px solid var(--black); background: transparent; color: var(--black);
   cursor: pointer; transition: var(--transition);
   display: flex; align-items: center; gap: 6px; min-height: 44px;
+  touch-action: manipulation;
 }
 .nav-auth-btn i { font-size: 0.9rem; }
 .nav-auth-btn:hover { background: var(--black); color: var(--white); transform: scale(1.02); }
@@ -159,6 +176,7 @@ nav.scrolled {
   display: none; flex-direction: column; justify-content: center; align-items: center;
   width: 32px; height: 28px; cursor: pointer; z-index: 101;
   background: transparent; border: none; padding: 0; position: relative;
+  touch-action: manipulation;
 }
 .hamburger span {
   display: block; width: 24px; height: 2px; background: var(--black);
@@ -174,11 +192,17 @@ nav.scrolled {
 
 .mobile-menu {
   position: fixed; top: 0; right: -100%; width: 85%; max-width: 340px;
-  height: 100vh; background: var(--white); z-index: 99;
+  height: 100vh; 
+  height: 100dvh; /* Динамічна висота для мобільних */
+  background: var(--white); z-index: 99;
   padding: 100px 28px 40px;
   transition: right 0.45s cubic-bezier(.25,.46,.45,.94);
   box-shadow: -5px 0 35px rgba(0,0,0,.12);
   display: flex; flex-direction: column; gap: 6px; overflow-y: auto;
+  will-change: right;
+  /* Запобігаємо смиканню фону при відкритті */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 .mobile-menu.open { right: 0; }
 .mobile-menu-header { margin-bottom: 24px; }
@@ -194,6 +218,7 @@ nav.scrolled {
   transition: all 0.3s ease; cursor: pointer;
   display: flex; align-items: center; gap: 14px;
   border-radius: var(--radius-sm); padding: 14px 16px;
+  touch-action: manipulation;
 }
 .mobile-menu a i { width: 26px; color: var(--gold); font-size: 1.1rem; }
 .mobile-menu a:hover {
@@ -207,6 +232,7 @@ nav.scrolled {
   cursor: pointer; transition: var(--transition);
   display: flex; align-items: center; justify-content: center; gap: 8px;
   min-height: 52px; border-radius: var(--radius-md);
+  touch-action: manipulation;
 }
 .mobile-auth-btn i { font-size: 1rem; }
 .mobile-auth-btn:hover { background: var(--gray-dark); transform: scale(0.98); }
@@ -222,6 +248,7 @@ nav.scrolled {
    ======================================== */
 .page {
   display: none; min-height: 100vh;
+  min-height: 100dvh;
   opacity: 0; transform: translateY(20px);
   transition: opacity .5s ease, transform .5s ease;
 }
@@ -231,7 +258,9 @@ nav.scrolled {
    HERO
    ======================================== */
 .hero {
-  min-height: 70vh; display: grid; grid-template-columns: 1fr 1fr;
+  min-height: 70vh; 
+  min-height: 70dvh;
+  display: grid; grid-template-columns: 1fr 1fr;
   position: relative; overflow: hidden;
 }
 .hero-left {
@@ -244,6 +273,7 @@ nav.scrolled {
   content: ''; position: absolute; top: -100px; right: -100px;
   width: 400px; height: 400px; border: 1px solid rgba(255,255,255,.05);
   border-radius: 50%; animation: rotate 20s linear infinite;
+  will-change: transform;
 }
 .hero-tag {
   font-size: .65rem; font-weight: 500; letter-spacing: .22em;
@@ -276,6 +306,7 @@ nav.scrolled {
   cursor: pointer; border: none; transition: var(--transition);
   position: relative; overflow: hidden; z-index: 1;
   min-height: clamp(44px,8vw,56px); border-radius: var(--radius-md);
+  touch-action: manipulation;
 }
 .hero-cta i { transition: transform .3s ease; }
 .hero-cta:hover i { transform: translateX(6px); }
@@ -293,6 +324,7 @@ nav.scrolled {
   cursor: pointer; border: 1px solid rgba(255,255,255,.35);
   transition: var(--transition); margin-top: 16px;
   min-height: clamp(44px,8vw,56px); border-radius: var(--radius-md);
+  touch-action: manipulation;
 }
 .hero-price-btn i { font-size: 1rem; }
 .hero-price-btn:hover { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.7); }
@@ -336,6 +368,7 @@ nav.scrolled {
   padding: clamp(14px,2vw,18px) clamp(20px,3vw,36px);
   display: flex; align-items: center; justify-content: space-between;
   cursor: pointer; transition: background .2s; user-select: none;
+  touch-action: manipulation;
 }
 .price-cat-header:hover { background: rgba(0,0,0,.02); }
 .price-cat-title {
@@ -393,6 +426,8 @@ nav.scrolled {
   padding: clamp(6px,1vw,10px) clamp(14px,2vw,24px);
   cursor: pointer; color: var(--gray-mid); border-bottom: 2px solid transparent;
   transition: var(--transition); display: flex; align-items: center; gap: 8px;
+  touch-action: manipulation;
+  white-space: nowrap;
 }
 .feed-tab i { font-size: .9rem; }
 .feed-tab.active { color: var(--black); border-bottom-color: var(--black); }
@@ -402,6 +437,7 @@ nav.scrolled {
   background: white; margin-bottom: clamp(24px,4vw,48px);
   border: 1px solid var(--gray-light); transition: var(--transition);
   border-radius: var(--radius-lg); overflow: hidden;
+  will-change: transform;
 }
 .post-card.animate-on-scroll.visible { animation: fadeInUp 0.6s ease-out; }
 .post-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-4px); }
@@ -420,6 +456,7 @@ nav.scrolled {
 .post-author {
   font-family: var(--font-display);
   font-size: clamp(0.95rem,2vw,1.15rem); font-weight: 500; cursor: pointer;
+  touch-action: manipulation;
 }
 .post-author:hover { text-decoration: underline; }
 .post-date { font-size: clamp(0.55rem,1vw,0.63rem); color: var(--gray-mid); margin-top: 3px; letter-spacing: .06em; }
@@ -428,8 +465,12 @@ nav.scrolled {
 .post-media-carousel {
   position: relative; background: #000; overflow: hidden;
   width: 100%; max-height: clamp(300px,60vh,600px); user-select: none;
+  -webkit-user-select: none;
 }
-.carousel-track { display: flex; transition: transform 0.3s ease; height: 100%; width: 100%; }
+.carousel-track { 
+  display: flex; transition: transform 0.3s ease; height: 100%; width: 100%;
+  will-change: transform;
+}
 .carousel-slide {
   flex: 0 0 100%; width: 100%; display: flex;
   align-items: center; justify-content: center; background: #000;
@@ -445,6 +486,7 @@ nav.scrolled {
   border-radius: 50%; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   font-size: clamp(1rem,2vw,1.2rem); z-index: 5; transition: background .2s;
+  touch-action: manipulation;
 }
 .carousel-nav:hover { background: rgba(255,255,255,.4); }
 .carousel-prev { left: clamp(8px,2vw,16px); }
@@ -457,6 +499,7 @@ nav.scrolled {
   width: clamp(5px,1vw,8px); height: clamp(5px,1vw,8px);
   border-radius: 50%; background: rgba(255,255,255,.5);
   cursor: pointer; transition: background .2s;
+  touch-action: manipulation;
 }
 .carousel-dot.active { background: white; transform: scale(1.2); }
 .carousel-counter {
@@ -489,7 +532,7 @@ nav.scrolled {
   letter-spacing: .12em; text-transform: uppercase; color: var(--gray-mid); margin-left: auto;
 }
 .stars-interactive { display: flex; gap: 4px; cursor: pointer; }
-.stars-interactive .star-icon { font-size: clamp(1.1rem,2.5vw,1.4rem); cursor: pointer; transition: transform .15s, color .15s; }
+.stars-interactive .star-icon { font-size: clamp(1.1rem,2.5vw,1.4rem); cursor: pointer; transition: transform .15s, color .15s; touch-action: manipulation; }
 .stars-interactive .star-icon:hover,
 .stars-interactive .star-icon.hovered { color: var(--gold); transform: scale(1.25); }
 .rated-badge {
@@ -506,6 +549,7 @@ nav.scrolled {
   font-family: var(--font-body); font-size: .68rem; font-weight: 600;
   letter-spacing: .1em; text-transform: uppercase; color: var(--gray-dark);
   transition: var(--transition);
+  touch-action: manipulation;
 }
 .post-reviews-toggle i { font-size: 1rem; }
 .post-reviews-toggle:hover { color: var(--black); background: rgba(0,0,0,.02); }
@@ -516,6 +560,7 @@ nav.scrolled {
 .post-reviews-list {
   display: none; padding: 0 24px 16px;
   border-top: 1px solid var(--gray-light); max-height: 380px; overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .post-reviews-list.open { display: block; }
 .review-item { padding: 14px 0; border-bottom: 1px solid var(--gray-light); }
@@ -534,6 +579,7 @@ nav.scrolled {
   display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
   color: var(--gray-dark); transition: var(--transition);
   padding: 6px 12px; border-radius: 20px; min-height: 40px;
+  touch-action: manipulation;
 }
 .like-btn i, .dislike-btn i { font-size: 1rem; }
 .like-btn:hover    { color: var(--like-color);    background: rgba(46,125,50,.05); }
@@ -551,6 +597,7 @@ nav.scrolled {
   cursor: pointer; transition: var(--transition);
   display: inline-flex; align-items: center; gap: 8px;
   min-height: 44px; border-radius: 30px;
+  touch-action: manipulation;
 }
 .btn-write-review i { font-size: 1rem; }
 .btn-write-review:hover { background: var(--black); color: var(--white); }
@@ -564,6 +611,7 @@ nav.scrolled {
   letter-spacing: .08em; text-transform: uppercase; color: var(--gray-dark);
   cursor: pointer; display: flex; align-items: center; gap: 6px;
   transition: var(--transition); padding: 4px 0;
+  touch-action: manipulation;
 }
 .action-btn i { font-size: 1rem; }
 .action-btn:hover { color: var(--black); }
@@ -572,6 +620,7 @@ nav.scrolled {
   border: none; background: none; cursor: pointer; letter-spacing: .08em;
   text-transform: uppercase; font-weight: 500; padding: 4px 0;
   transition: var(--transition); display: flex; align-items: center; gap: 4px;
+  touch-action: manipulation;
 }
 .post-delete-btn i { font-size: 0.9rem; }
 .post-delete-btn:hover { text-decoration: underline; }
@@ -581,6 +630,7 @@ nav.scrolled {
   display: inline-block; width: 32px; height: 32px;
   border: 2px solid var(--gray-light); border-top-color: var(--black);
   border-radius: 50%; animation: spin .7s linear infinite; margin-bottom: 16px;
+  will-change: transform;
 }
 
 .create-post-fab {
@@ -592,6 +642,11 @@ nav.scrolled {
   cursor: pointer; z-index: 90; display: none; align-items: center; gap: 8px;
   box-shadow: var(--shadow-lg); transition: var(--transition);
   border-radius: 40px; min-height: 56px; animation: pulse 2s infinite;
+  touch-action: manipulation;
+  /* Апаратне прискорення */
+  will-change: transform;
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
 }
 .create-post-fab i { font-size: 1.2rem; }
 .create-post-fab.visible { display: flex; }
@@ -615,6 +670,8 @@ nav.scrolled {
 .master-card {
   background: white; border: 1px solid var(--gray-light); cursor: pointer;
   transition: var(--transition); overflow: hidden; border-radius: var(--radius-lg);
+  will-change: transform;
+  touch-action: manipulation;
 }
 .master-card.animate-on-scroll.visible { animation: fadeInUp 0.6s ease-out; }
 .master-card:hover { transform: translateY(-8px); box-shadow: var(--shadow-lg); }
@@ -647,6 +704,7 @@ nav.scrolled {
   display: grid;
   grid-template-columns: var(--sidebar-w) 1fr;
   min-height: 100vh;
+  min-height: 100dvh;
   padding-top: var(--nav-h);
   max-width: 100%;
   overflow-x: hidden;
@@ -660,11 +718,15 @@ nav.scrolled {
   position: sticky;
   top: var(--nav-h);
   height: calc(100vh - var(--nav-h));
+  height: calc(100dvh - var(--nav-h));
   overflow-y: auto;
   border-right: 1px solid rgba(255,255,255,0.06);
   display: flex;
   flex-direction: column;
   gap: 18px;
+  /* Плавний скрол */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 .profile-sidebar::-webkit-scrollbar { width: 3px; }
 .profile-sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
@@ -859,6 +921,7 @@ nav.scrolled {
   display: flex; align-items: center; justify-content: center;
   font-size: 0.9rem; text-decoration: none;
   transition: var(--transition); will-change: transform;
+  touch-action: manipulation;
 }
 .profile-social-links a:hover {
   background: var(--gold); color: #0a0a0a; border-color: var(--gold);
@@ -882,6 +945,7 @@ nav.scrolled {
   border-radius: 30px;
   display: flex; align-items: center; justify-content: center; gap: 8px;
   transition: var(--transition); will-change: transform; margin-top: auto;
+  touch-action: manipulation;
 }
 .btn-edit-profile:hover {
   background: rgba(255,255,255,0.08);
@@ -907,9 +971,11 @@ nav.scrolled {
   border-bottom: 1px solid var(--gray-light);
   overflow-x: auto;
   scrollbar-width: none;
+  -ms-overflow-style: none;
   -webkit-overflow-scrolling: touch;
   white-space: nowrap;
   padding-bottom: 2px;
+  overscroll-behavior: contain;
 }
 .profile-tabs::-webkit-scrollbar { display: none; }
 .profile-tab {
@@ -927,6 +993,7 @@ nav.scrolled {
   font-family: var(--font-body);
   display: inline-flex; align-items: center; gap: 7px;
   transition: var(--transition);
+  touch-action: manipulation;
 }
 .profile-tab i { font-size: 0.95rem; }
 .profile-tab:hover  { color: var(--black); }
@@ -947,6 +1014,7 @@ nav.scrolled {
   position: relative; border-radius: var(--radius-sm);
   will-change: transform;
   animation: fadeUp 0.45s cubic-bezier(0.4,0,0.2,1) both;
+  touch-action: manipulation;
 }
 .profile-post-item:nth-child(1) { animation-delay: 0.10s; }
 .profile-post-item:nth-child(2) { animation-delay: 0.15s; }
@@ -1059,6 +1127,7 @@ nav.scrolled {
   display: grid;
   grid-template-columns: minmax(200px,240px) 1fr;
   min-height: calc(100vh - 100px);
+  min-height: calc(100dvh - 100px);
   padding-top: clamp(60px,12vw,100px);
 }
 .admin-sidebar { background: var(--black); padding: clamp(20px,4vw,40px) clamp(16px,3vw,28px); }
@@ -1074,6 +1143,7 @@ nav.scrolled {
   letter-spacing: .1em; color: var(--gray-mid); cursor: pointer;
   transition: var(--transition); border-left: 2px solid transparent;
   text-transform: uppercase; display: flex; align-items: center; gap: 10px;
+  touch-action: manipulation;
 }
 .admin-nav-item i { width: 18px; }
 .admin-nav-item:hover, .admin-nav-item.active {
@@ -1100,6 +1170,7 @@ nav.scrolled {
 .admin-masters-table {
   width: 100%; border-collapse: collapse;
   display: block; overflow-x: auto; -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 .admin-masters-table th {
   padding: 10px 14px; text-align: left; border-bottom: 2px solid var(--black);
@@ -1130,6 +1201,7 @@ nav.scrolled {
   cursor: pointer; transition: var(--transition);
   display: inline-flex; align-items: center; gap: 8px;
   min-height: 44px; border-radius: 30px;
+  touch-action: manipulation;
 }
 .btn-primary i { font-size: 0.9rem; }
 .btn-primary:hover { background: var(--gray-dark); transform: scale(1.02); }
@@ -1143,6 +1215,7 @@ nav.scrolled {
   cursor: pointer; transition: var(--transition);
   display: inline-flex; align-items: center; gap: 8px;
   min-height: 44px; border-radius: 30px;
+  touch-action: manipulation;
 }
 .btn-secondary i { font-size: 0.9rem; }
 .btn-secondary:hover { background: var(--black); color: var(--white); }
@@ -1154,6 +1227,7 @@ nav.scrolled {
   text-transform: uppercase; cursor: pointer; transition: var(--transition);
   display: inline-flex; align-items: center; gap: 6px;
   min-height: 40px; border-radius: 20px;
+  touch-action: manipulation;
 }
 .btn-danger i { font-size: 0.8rem; }
 .btn-danger:hover { background: #c0392b; color: white; }
@@ -1164,6 +1238,7 @@ nav.scrolled {
   background: #fff; color: #333; border: 1px solid #ddd;
   display: flex; align-items: center; justify-content: center; gap: 12px;
   width: 100%; margin-top: 4px; border-radius: 30px;
+  touch-action: manipulation;
 }
 .btn-google:hover { background: #f5f5f5; box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
 
@@ -1192,15 +1267,21 @@ nav.scrolled {
   z-index: 200; display: flex; align-items: center; justify-content: center;
   opacity: 0; pointer-events: none; transition: opacity .3s ease;
   backdrop-filter: blur(4px); padding: 20px;
+  /* Запобігаємо смиканню фону */
+  overscroll-behavior: none;
 }
 .modal-overlay.open { opacity: 1; pointer-events: all; }
 .modal {
   background: var(--white); width: 100%; max-width: min(540px,95%);
-  max-height: 90vh; overflow-y: auto;
+  max-height: 90vh;
+  max-height: 90dvh;
+  overflow-y: auto;
   transform: translateY(30px);
   transition: transform .4s cubic-bezier(.25,.46,.45,.94);
   border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
   margin: clamp(8px,2vw,20px);
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 .modal-overlay.open .modal { transform: translateY(0); }
 .modal-header {
@@ -1213,6 +1294,7 @@ nav.scrolled {
   width: 40px; height: 40px; display: flex; align-items: center;
   justify-content: center; cursor: pointer; border: 1px solid var(--gray-light);
   transition: var(--transition); background: none; font-size: 1.2rem; border-radius: 50%;
+  touch-action: manipulation;
 }
 .modal-close i { pointer-events: none; }
 .modal-close:hover { background: var(--black); color: white; border-color: var(--black); }
@@ -1235,6 +1317,8 @@ nav.scrolled {
   font-family: var(--font-body); font-size: clamp(0.8rem,1.6vw,0.9rem);
   color: var(--black); outline: none; transition: border-color .3s;
   border-radius: var(--radius-sm);
+  /* Запобігаємо затримці при фокусі на iOS */
+  touch-action: manipulation;
 }
 .form-input:focus, .form-textarea:focus, .form-select:focus { border-color: var(--black); }
 .form-textarea { resize: vertical; min-height: 90px; }
@@ -1273,11 +1357,12 @@ nav.scrolled {
   text-transform: uppercase; cursor: pointer; color: var(--gray-mid);
   transition: var(--transition); display: flex; align-items: center; gap: 6px;
   border-bottom: 2px solid transparent; margin-bottom: -1px;
+  touch-action: manipulation;
 }
 .auth-tab i { font-size: 0.9rem; }
 .auth-tab.active { color: var(--black); border-bottom-color: var(--black); }
 .star-picker { display: flex; gap: 8px; margin-top: 4px; }
-.star-picker span { font-size: 2rem; cursor: pointer; color: var(--gray-light); transition: color .15s, transform .15s; }
+.star-picker span { font-size: 2rem; cursor: pointer; color: var(--gray-light); transition: color .15s, transform .15s; touch-action: manipulation; }
 .star-picker span i { pointer-events: none; }
 .star-picker span:hover, .star-picker span.sel { color: var(--gold); transform: scale(1.2); }
 
@@ -1292,6 +1377,7 @@ nav.scrolled {
   font-size: clamp(0.7rem,1.5vw,0.8rem); font-weight: 500; letter-spacing: .06em;
   z-index: 500; opacity: 0; transition: all .4s cubic-bezier(.25,.46,.45,.94);
   pointer-events: none; white-space: nowrap; border-radius: 30px; box-shadow: var(--shadow);
+  will-change: transform, opacity;
 }
 .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
 .toast.success::before { content: '✓ '; color: #6fcf97; }
@@ -1314,6 +1400,7 @@ footer {
   font-size: .72rem; color: rgba(255,255,255,.55); margin-bottom: 10px;
   line-height: 1.6; cursor: pointer; transition: color .2s;
   display: flex; align-items: center; gap: 8px;
+  touch-action: manipulation;
 }
 .footer-col-item i { width: 18px; color: var(--gold); }
 .footer-col-item:hover { color: rgba(255,255,255,.9); }
