@@ -48,7 +48,6 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Глобальні стилі для img та video */
 img {
   max-width: 100%;
   display: block;
@@ -459,12 +458,12 @@ nav.scrolled {
 .post-author:hover { text-decoration: underline; }
 .post-date { font-size: clamp(0.55rem,1vw,0.63rem); color: var(--gray-mid); margin-top: 3px; letter-spacing: .06em; }
 
-/* ── CAROUSEL ── */
+/* ── CAROUSEL (adaptive, no black bars) ── */
 .post-media-carousel {
   position: relative;
   width: 100%;
   overflow: hidden;
-  background: #000;
+  background: transparent;
   border-radius: 0;
   user-select: none;
   -webkit-user-select: none;
@@ -481,13 +480,13 @@ nav.scrolled {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #000;
+  background: transparent;
 }
 .carousel-slide img,
 .carousel-slide video {
   width: 100%;
   height: auto;
-  max-height: 80vh;
+  max-height: none;
   display: block;
   object-fit: contain;
 }
