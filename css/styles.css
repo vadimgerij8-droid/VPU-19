@@ -458,7 +458,7 @@ nav.scrolled {
 .post-author:hover { text-decoration: underline; }
 .post-date { font-size: clamp(0.55rem,1vw,0.63rem); color: var(--gray-mid); margin-top: 3px; letter-spacing: .06em; }
 
-/* ── CAROUSEL (adaptive, no black bars) ── */
+/* ── CAROUSEL (adaptive, no black bars – img & video) ── */
 .post-media-carousel {
   position: relative;
   width: 100%;
